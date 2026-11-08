@@ -1,0 +1,213 @@
+# Borrowing historical information: exact operating characteristics for a binary control rate.
+
+.borrow_grid <- seq(0.0005, 0.9995, length.out = 2000)
+
+.trapz <- function(y, x) sum((y[-1] + y[-length(y)]) / 2 * diff(x))
+
+#' Posterior mixture for a control rate after observing current control data
+#'
+#' @param yc Number of control responders.
+#' @param nc Number of control patients.
+#' @param comps Data frame with columns `w`, `a`, `b` (prior mixture of betas).
+#' @return Data frame with columns `w`, `a`, `b` for the posterior mixture.
+#' @examples
+#' borrow_post_control(9, 30, data.frame(w = c(.8, .2), a = c(31, 1), b = c(71, 1)))
+#' @export
+borrow_post_control <- function(yc, nc, comps) {
+  logw <- log(comps$w) + lbeta(comps$a + yc, comps$b + nc - yc) - lbeta(comps$a, comps$b)
+  logw <- logw - max(logw)
+  pw <- exp(logw)
+  pw <- pw / sum(pw)
+  data.frame(w = pw, a = comps$a + yc, b = comps$b + nc - yc)
+}
+
+#' Posterior probability that treatment beats control under a control mixture
+#'
+#' Treatment prior is Beta(1, 1). Control posterior is a beta mixture. Computed by
+#' trapezoid integration on a 2000 point grid. Vectorized over `yt`.
+#'
+#' @param yt Treatment responders (vector).
+#' @param nt Treatment patients.
+#' @param comps_post Data frame with columns `w`, `a`, `b`.
+#' @return Numeric vector of \eqn{\Pr(p_t > p_c \mid data)}.
+#' @examples
+#' borrow_prob_superior(20, 60, data.frame(w = 1, a = 10, b = 22))
+#' @export
+borrow_prob_superior <- function(yt, nt, comps_post) {
+  g <- .borrow_grid
+  dens <- rep(0, length(g))
+  for (i in seq_len(nrow(comps_post))) {
+    dens <- dens + comps_post$w[i] * dbeta(g, comps_post$a[i], comps_post$b[i])
+  }
+  dens <- dens / .trapz(dens, g)
+  vapply(yt, function(y) .trapz(dens * (1 - pbeta(g, 1 + y, 1 + nt - y)), g), numeric(1))
+}
+
+#' Control priors compared in the borrowing chapter
+#'
+#' @param yh,nh Historical control responders and patients.
+#' @param a0 Power prior discount.
+#' @param w_robust Weight on the informative component of the robust mixture.
+#' @return Named list of data frames (`w`, `a`, `b`): No borrowing, Full pooling, Power prior, Robust MAP.
+#' @examples
+#' borrow_priors(30, 100)
+#' @export
+borrow_priors <- function(yh, nh, a0 = 0.3, w_robust = 0.8) {
+  mk <- function(w, a, b) data.frame(w = w, a = a, b = b)
+  out <- list(
+    mk(1, 1, 1),
+    mk(1, 1 + yh, 1 + nh - yh),
+    mk(1, 1 + a0 * yh, 1 + a0 * (nh - yh)),
+    mk(c(w_robust, 1 - w_robust), c(1 + yh, 1), c(1 + nh - yh, 1))
+  )
+  names(out) <- c("No borrowing", "Full pooling", sprintf("Power prior (a0=%g)", a0),
+                  sprintf("Robust MAP (w=%g)", w_robust))
+  out
+}
+
+#' Power prior for a binary control rate
+#'
+#' @param yh,nh Historical responders and patients.
+#' @param a0 Discount, between 0 and 1.
+#' @return List with beta parameters `a`, `b`.
+#' @examples
+#' borrow_power_prior(30, 100, 0.3)
+#' @export
+borrow_power_prior <- function(yh, nh, a0) {
+  list(a = 1 + a0 * yh, b = 1 + a0 * (nh - yh))
+}
+
+#' Decision table of a borrowing method
+#'
+#' Entry `[yc + 1, yt + 1]` is TRUE when \eqn{\Pr(p_t > p_c \mid data) > c}.
+#'
+#' @param comps Prior mixture for control (data frame `w`, `a`, `b`).
+#' @param nt,nc Patients on treatment and control.
+#' @param c Decision threshold (named `c` as in the book).
+#' @return Logical matrix of dimension (nc + 1) by (nt + 1).
+#' @examples
+#' borrow_decision_table(data.frame(w = 1, a = 1, b = 1), 10, 5, 0.975)
+#' @export
+borrow_decision_table <- function(comps, nt, nc, c) {
+  tab <- matrix(FALSE, nc + 1, nt + 1)
+  for (yc in 0:nc) {
+    post <- borrow_post_control(yc, nc, comps)
+    tab[yc + 1, ] <- borrow_prob_superior(0:nt, nt, post) > c
+  }
+  tab
+}
+
+#' Exact rejection probability of a decision table
+#'
+#' @param tab Logical matrix from [borrow_decision_table()].
+#' @param pc,pt True control and treatment rates.
+#' @param nt,nc Patients on treatment and control.
+#' @return Rejection probability (vectorized over `pc` and `pt`).
+#' @examples
+#' tab <- borrow_decision_table(data.frame(w = 1, a = 1, b = 1), 10, 5, 0.975)
+#' borrow_reject_prob(tab, 0.3, 0.3, 10, 5)
+#' @export
+borrow_reject_prob <- function(tab, pc, pt, nt, nc) {
+  n <- max(length(pc), length(pt))
+  pc <- rep_len(pc, n); pt <- rep_len(pt, n)
+  vapply(seq_len(n), function(i) {
+    wc <- dbinom(0:nc, nc, pc[i]); wt <- dbinom(0:nt, nt, pt[i])
+    as.numeric(wc %*% tab %*% wt)
+  }, numeric(1))
+}
+
+#' Posterior weight on the informative component of a robust MAP prior
+#'
+#' @param yc,nc Current control responders and patients (`yc` may be a vector).
+#' @param yh,nh Historical responders and patients.
+#' @param w Prior weight on the informative component.
+#' @return Posterior weight (numeric vector).
+#' @examples
+#' borrow_robust_weight(9, 30, 30, 100)
+#' @export
+borrow_robust_weight <- function(yc, nc, yh, nh, w = 0.8) {
+  comps <- borrow_priors(yh, nh, w_robust = w)[[4]]
+  vapply(yc, function(k) borrow_post_control(k, nc, comps)$w[1], numeric(1))
+}
+
+#' Dynamic effective sample size of a robust prior
+#'
+#' Posterior weight on the informative component times its prior ESS (nh + 2).
+#'
+#' @inheritParams borrow_robust_weight
+#' @return Numeric vector.
+#' @examples
+#' borrow_ess_robust(9, 30, 30, 100)
+#' @export
+borrow_ess_robust <- function(yc, nc, yh, nh, w = 0.8) {
+  borrow_robust_weight(yc, nc, yh, nh, w) * (nh + 2)
+}
+
+#' Hierarchical logit-normal basket model on a grid
+#'
+#' Half-normal(1) prior on tau, N(0, 2^2) on mu (logit scale), Gauss-type quadrature over basket effects.
+#'
+#' @param y,n Responders and patients per basket.
+#' @param mu_grid,tau_grid Grids for the logit mean and between-basket sd.
+#' @param nq Number of quadrature nodes.
+#' @return List with `means` (posterior mean response per basket) and `tau_mean`.
+#' @examples
+#' borrow_basket_posterior(c(12, 12, 3), c(30, 30, 30), nq = 21)
+#' @export
+borrow_basket_posterior <- function(y, n, mu_grid = NULL, tau_grid = NULL, nq = 81) {
+  K <- length(y)
+  if (is.null(mu_grid)) mu_grid <- seq(-3, 1.5, length.out = 46)
+  if (is.null(tau_grid)) tau_grid <- seq(0.05, 3.0, length.out = 40)
+  z <- seq(-6, 6, length.out = nq)
+  wz <- dnorm(z); wz <- wz / sum(wz)
+  lp_tau <- log(2) + dnorm(tau_grid, 0, 1, log = TRUE)
+  lp_mu <- dnorm(mu_grid, 0, 2, log = TRUE)
+  logpost <- matrix(0, length(mu_grid), length(tau_grid))
+  ratio <- array(0, c(K, length(mu_grid), length(tau_grid)))
+  for (i in seq_along(mu_grid)) {
+    for (j in seq_along(tau_grid)) {
+      th <- plogis(mu_grid[i] + tau_grid[j] * z)
+      L <- vapply(th, function(t) dbinom(y, n, t), numeric(K))
+      L <- matrix(L, K, nq)
+      lik <- as.vector(L %*% wz)
+      num <- as.vector((L * rep(th, each = K)) %*% wz)
+      ratio[, i, j] <- num / lik
+      logpost[i, j] <- lp_mu[i] + lp_tau[j] + sum(log(lik))
+    }
+  }
+  w <- exp(logpost - max(logpost)); w <- w / sum(w)
+  means <- vapply(seq_len(K), function(k) sum(w * ratio[k, , ]), numeric(1))
+  list(means = means, tau_mean = sum(colSums(w) * tau_grid))
+}
+
+#' Meta-analytic-predictive prior from historical controls (normal-normal, logit scale)
+#'
+#' @param y,n Historical responders and patients.
+#' @param tau_scale Half-normal scale for the between-trial sd.
+#' @param nsamp Number of predictive samples.
+#' @param seed Optional seed.
+#' @return List with `samples` (control rate in a new trial), `beta` (moment-matched `a`, `b`), `taus`, `pw`.
+#' @examples
+#' borrow_map_prior(c(24, 33, 27, 45), c(80, 100, 70, 150), nsamp = 1000, seed = 1)$beta
+#' @export
+borrow_map_prior <- function(y, n, tau_scale = 0.5, nsamp = 200000, seed = NULL) {
+  if (!is.null(seed)) set.seed(seed)
+  y <- as.numeric(y); n <- as.numeric(n)
+  est <- log((y + 0.5) / (n - y + 0.5)); se2 <- 1 / (y + 0.5) + 1 / (n - y + 0.5)
+  taus <- seq(0.001, 2.0, length.out = 400)
+  lp <- dnorm(taus, 0, tau_scale, log = TRUE) + log(2)
+  mus <- numeric(length(taus)); vmu <- numeric(length(taus))
+  for (i in seq_along(taus)) {
+    w <- 1 / (se2 + taus[i]^2)
+    m <- sum(w * est) / sum(w); v <- 1 / sum(w)
+    lp[i] <- lp[i] + 0.5 * log(v) - 0.5 * sum(log(se2 + taus[i]^2)) - 0.5 * sum(w * (est - m)^2)
+    mus[i] <- m; vmu[i] <- v
+  }
+  pw <- exp(lp - max(lp)); pw <- pw / sum(pw)
+  idx <- sample.int(length(taus), nsamp, replace = TRUE, prob = pw)
+  theta <- rnorm(nsamp, mus[idx], sqrt(vmu[idx])) + rnorm(nsamp, 0, taus[idx])
+  p <- plogis(theta)
+  m <- mean(p); v <- var(p)
+  k <- m * (1 - m) / v - 1
+  list(samples = p, beta = c(a = m * k, b = (1 - m) * k), taus = taus, pw = pw)
+}

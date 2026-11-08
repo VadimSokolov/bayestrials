@@ -1,0 +1,22 @@
+test_that("textbook sizes match Python", {
+  expect_equal(n_fixed(0.2), 262.68557653601545, tolerance = 1e-6)
+  expect_equal(events_schoenfeld(0.8), 4 * (qnorm(.975) + qnorm(.9))^2 / log(.8)^2)
+  expect_equal(power_z(0.2, n_fixed(0.2)), 0.9, tolerance = 1e-8)
+})
+test_that("moderate deviation reproduces chapter numbers", {
+  expect_equal(n_md(0.2), 341.6748884942474, tolerance = 1e-6)
+  expect_equal(round(n_md(0.2)), 342)
+  expect_equal(round(n_fixed(0.2)), 263)
+  a <- alpha_md(342)
+  expect_equal(a$t, 2.415535289964236, tolerance = 1e-6)
+  expect_equal(a$alpha, 0.017861322897315443, tolerance = 1e-6)
+  expect_equal(n_md(0.2, 0.5), 362.94801064118985, tolerance = 1e-6)
+  ev <- vapply(c(1, 2, 4), function(o) events_md(0.8, 2 * log(o))[["events"]], 0)
+  expect_equal(ev[1], 1067.3983711115652, tolerance = 1e-6)
+  expect_equal(round(ev[1]), 1067)
+  expect_equal(round(events_schoenfeld(0.8)), 844)
+  expect_equal(round(ev[2:3]), c(1255, 1433))
+})
+test_that("assurance reduces to power when s = 0", {
+  expect_equal(assurance(0.2, 0, 0.1), power_z(0.2, 100), tolerance = 1e-10)
+})

@@ -1,0 +1,15 @@
+# Mapping: ch06_evidence.py -> R/evidence.R
+- fpr -> `false_positive_risk`
+- power_one_sided -> `power_one_sided`
+- log_bf10 -> `bf10_normal(z, k, log = TRUE)`
+- post_null -> `posterior_null`
+- min_bf_pvalue -> `min_bf(p, type = "pvalue")`
+- min_bf_gaussian -> `min_bf(z, type = "gaussian")`
+- bayes_bar -> `bayes_bar`
+- crossing_k -> `crossing_n` (returns NA if no crossing in the bracket, Python raised an error)
+- success_threshold_flat -> `threshold_flat`
+- type1_flat -> `type1_posterior_flat`
+- type1_normal_prior -> `type1_posterior_normal`
+- power_normal_prior -> `power_posterior_normal`
+- c_for_alpha_flat -> `calibrate_c_flat`
+- c_for_alpha_normal_prior -> `calibrate_c_normal`

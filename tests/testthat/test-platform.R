@@ -1,0 +1,31 @@
+test_that("exact helpers match Python", {
+  tb <- platform_shared_control_table(2:3, 80)
+  expect_equal(tb$platform, c(240, 320))
+  expect_equal(tb$saving, c(0.25, 1/3), tolerance = 1e-12)
+  expect_equal(platform_contrast_variance(4, 480, 2), 0.01875, tolerance = 1e-12)
+  expect_equal(platform_arm_correlation(1), 0.5)
+})
+test_that("false positive counts", {
+  r <- platform_false_positive_counts(3, 1, seed = 1)
+  expect_equal(sum(r), 1)
+  se <- sqrt(c(0.9374075, 0.0516125, 0.00932, 0.00166) * (1 - c(0.9374075, 0.0516125, 0.00932, 0.00166)) / 4e5)
+  expect_true(all(abs(r - c(0.9374075, 0.0516125, 0.00932, 0.00166)) < 4 * se * sqrt(2)))
+})
+test_that("drift simulation matches Python", {
+  r <- platform_drift_simulation(nsim = 4000, seed = 7)
+  ref_rej <- c(0.02625, 0.08925, 0.028)
+  se <- sqrt(ref_rej * (1 - ref_rej) / 4000)
+  expect_true(all(abs(r$rejection - ref_rej) < 4 * se * sqrt(2)))
+  expect_equal(r$mean_estimate[2], 0.02472, tolerance = 0.2)
+})
+test_that("predictive graduation matches Python", {
+  r <- platform_predictive_graduation(20, 40, 12, 40, seed = 3)
+  expect_lt(abs(r[["pp"]] - 0.761525), 4 * sqrt(0.76 * 0.24 / 4e4) * sqrt(2))
+  expect_lt(abs(r[["post"]] - 0.96515), 4 * sqrt(0.97 * 0.03 / 4e4) * sqrt(2))
+})
+test_that("time machine matches Python", {
+  r <- platform_time_machine(c(0, .02, .04, .06), seed = 11)
+  expect_equal(r$bias[2], -0.0298, tolerance = 0.05)
+  expect_equal(r$rmse[4], 0.03272, tolerance = 0.05)
+  expect_equal(r$rmse[1], 0.04775, tolerance = 0.05)
+})

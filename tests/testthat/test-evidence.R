@@ -1,0 +1,22 @@
+test_that("evidence functions match Python to 1e-6", {
+  expect_equal(false_positive_risk(.5, .8, .025), 0.030303030303030304, tolerance = 1e-6)
+  expect_equal(power_one_sided(2.8), 0.7995559032981122, tolerance = 1e-6)
+  expect_equal(bf10_normal(2.5, 10, log = TRUE), 1.6419614545099055, tolerance = 1e-6)
+  expect_equal(posterior_null(1.3, .5), 0.2141650169574414, tolerance = 1e-6)
+  expect_equal(min_bf(0.01), 0.1251815043353279, tolerance = 1e-6)
+  expect_equal(min_bf(2, "gaussian"), 0.1353352832366127, tolerance = 1e-6)
+  expect_equal(bayes_bar(10, 4), 5.687532394541968, tolerance = 1e-6)
+  expect_equal(crossing_n(), 41.57329443857865, tolerance = 1e-6)
+  expect_equal(crossing_n(0.05), 10.925408185346662, tolerance = 1e-6)
+  expect_true(is.na(crossing_n(0.025, 2)))
+})
+
+test_that("posterior-criterion calibration matches Python", {
+  expect_equal(type1_posterior_flat(.1, .95, .05), 0.0001337720145987431, tolerance = 1e-6)
+  expect_equal(type1_posterior_normal(.1, .95, .05, .3), 9.839658829624565e-05, tolerance = 1e-6)
+  expect_equal(calibrate_c_flat(.1, .05), 0.4840322065576682, tolerance = 1e-6)
+  expect_equal(calibrate_c_normal(.1, .05, .3), 0.46243902142783316, tolerance = 1e-6)
+  expect_equal(power_posterior_normal(.1, .95, .05, .3, .15), 0.23480987260062558, tolerance = 1e-6)
+  expect_equal(threshold_flat(.1, .95, .05), 0.1822426813475736, tolerance = 1e-6)
+  expect_equal(type1_posterior_flat(0, calibrate_c_flat(0, .05, .025), .05), 0.025, tolerance = 1e-9)
+})

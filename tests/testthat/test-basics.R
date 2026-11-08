@@ -1,0 +1,30 @@
+test_that("z_test_binary and wald_ci match Python", {
+  expect_equal(z_test_binary(30, 45, 100), 2.1908902300206647, tolerance = 1e-6)
+  ci <- wald_ci(30, 45, 100)
+  expect_equal(ci$lower, 0.0174304933075648, tolerance = 1e-6)
+  expect_equal(ci$upper, 0.2825695066924352, tolerance = 1e-6)
+  expect_equal(z_test_binary(0, 0, 10), 0)
+})
+
+test_that("sim_two_arm_binary matches Python moments", {
+  s <- sim_two_arm_binary(0.30, 0.45, 100, 200000, seed = 1)
+  expect_equal(nrow(s), 200000)
+  expect_lt(abs(mean(s$diff) - 0.14989655), 4 * 0.00015 * sqrt(2))
+  expect_lt(abs(sd(s$diff) - 0.0676298), 0.001)
+})
+
+test_that("perm_test equals exact permutation p-value within MC error", {
+  y1 <- c(3, 5, 8, 9, 12); y0 <- c(1, 2, 4, 6, 7)
+  y <- c(y1, y0)
+  cm <- combn(10, 5)
+  d <- apply(cm, 2, function(i) mean(y[i]) - mean(y[-i]))
+  obs <- mean(y1) - mean(y0)
+  p_ex <- mean(d >= obs - 1e-12)
+  p2_ex <- mean(abs(d) >= abs(obs) - 1e-12)
+  r <- perm_test(y1, y0, nsim = 40000, seed = 2)
+  se <- sqrt(p_ex * (1 - p_ex) / 40000)
+  expect_equal(r$obs, obs)
+  expect_lt(abs(r$p_one - p_ex), 4 * se)
+  expect_lt(abs(r$p_two - p2_ex), 4 * sqrt(p2_ex * (1 - p2_ex) / 40000))
+  expect_length(r$sims, 40000)
+})

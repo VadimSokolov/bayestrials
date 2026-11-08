@@ -1,0 +1,18 @@
+Package: bayestrials
+Title: Bayesian Adaptive Clinical Trials: Design, Calibration and Simulation
+Version: 0.1.0
+Authors@R: c(
+    person("Nicholas G.", "Polson", role = "aut"),
+    person("Vadim", "Sokolov", email = "vsokolov@gmu.edu", role = c("aut", "cre")))
+Description: Companion package to the book "Bayesian Adaptive Clinical Trials". Posterior computations for binary, normal and time-to-event endpoints; group sequential boundaries by the Armitage recursion; calibration of posterior probability success rules to a frequentist type I error by simulation; operating characteristics of fixed, group sequential and Bayesian adaptive designs; predictive probability and backward induction; response-adaptive randomization; dose finding; borrowing from historical data; platform trials; e-values; and the case-study reconstructions used in the book.
+URL: https://github.com/VadimSokolov/bayestrials
+BugReports: https://github.com/VadimSokolov/bayestrials/issues
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Depends: R (>= 4.1)
+Imports: stats, mvtnorm
+Suggests: testthat (>= 3.0.0), patchwork, rpact, gsDesign, BOIN
+Config/testthat/edition: 3
+LazyData: true

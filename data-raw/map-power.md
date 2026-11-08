@@ -1,0 +1,12 @@
+# ch08_power.py to R (power.R)
+- z: dropped, use `qnorm`
+- zsum2: internal `zsum2` (not exported)
+- n_standard(theta, alpha, power, I): `n_fixed(theta, alpha, power, info)`
+- n_binary: `n_binary`
+- n_continuous: `n_continuous`
+- events_schoenfeld: `events_schoenfeld`
+- power_z(theta, n, alpha, I): `power_z(theta, n, alpha, info)`
+- assurance: `assurance`
+- n_md: `n_md` (vectorized; arg `info` replaces `I`)
+- alpha_md: `alpha_md` (returns data.frame with `t`, `alpha`)
+- events_md: `events_md` (returns named vector `events`, `t`)
