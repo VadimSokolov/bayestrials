@@ -54,3 +54,9 @@ test_that("time machine fit uses only observed counts, not the true rates", {
   expect_gt(jump$est[[1]], 0.35)
   expect_lt(abs(stable$est[[1]] - 0.30), 0.005)
 })
+
+test_that("N3: one-period time machine works", {
+  r <- platform_time_machine(0, nsim = 20, seed = 1)
+  expect_true(all(is.finite(r$rmse)))
+  expect_true(is.na(r$mean_tau[r$method == "learned smoothing (REML tau)"]))
+})

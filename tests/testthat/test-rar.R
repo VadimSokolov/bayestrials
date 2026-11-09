@@ -166,3 +166,11 @@ test_that("best-arm rejection summaries are sane under the null and with a singl
   }
   expect_equal(dim(rar_alloc_probs("ts", matrix(c(3, 6), 1), matrix(c(7, 4), 1), 20, 100, 2)), c(1, 2))
 })
+
+test_that("N2/M5: rar_simulate validates N and batch, floor feasibility up front", {
+  expect_error(rar_simulate(c(.3, .4), 10, "equal", reps = 2, batch = 0))
+  expect_error(rar_simulate(c(.3, .4), 10.5, "equal", reps = 2))
+  expect_error(rar_simulate(c(.3, .4), 10, "equal", reps = 2, batch = 2.5))
+  expect_error(rar_simulate(c(.3, .4), Inf, "equal", reps = 2))
+  expect_error(rar_alloc_probs("capped", matrix(0, 1, 2), matrix(0, 1, 2), 0, 100, 2, floor = 0.6))
+})

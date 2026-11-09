@@ -74,6 +74,8 @@ assign_simple <- function(n, seed = NULL) {
 #' assign_block(12, seed = 1)
 #' @export
 assign_block <- function(n, sizes = 4, seed = NULL) {
+  if (anyNA(sizes) || any(!is.finite(sizes)) || any(sizes < 2) || any(sizes %% 2 != 0))
+    stop("`sizes` must be positive even integers")
   if (!is.null(seed)) set.seed(seed)
   out <- integer(0)
   while (length(out) < n) {

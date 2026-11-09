@@ -54,3 +54,9 @@ test_that("rand_bits_lcg matches the direct recursion", {
   expect_lt(compress_ratio(rand_bits_lcg(2000)), 0.25)
   expect_gt(compress_ratio(rand_bits_lcg(2000)), 0.125)
 })
+
+test_that("M14: invalid block sizes and fractional looks are rejected", {
+  expect_error(assign_block(1, sizes = 0))
+  expect_error(assign_block(4, sizes = 3))
+  expect_error(oc_simulate(.3, .3, c(50.5, 100), nsim = 10))
+})

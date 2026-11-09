@@ -71,6 +71,8 @@ oc_simulate <- function(p0, p1, looks, a = 0, prior = c(1, 1), nsim = 20000, see
                         fut = NULL, method = c("table", "normal")) {
   method <- match.arg(method)
   if (!is.null(seed)) set.seed(seed)
+  if (anyNA(looks) || any(!is.finite(looks)) || any(looks != round(looks)) || any(looks < 1))
+    stop("`looks` must be positive integers")
   looks <- as.integer(looks)
   K <- length(looks)
   inc <- diff(c(0L, looks))

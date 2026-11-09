@@ -164,6 +164,14 @@ platform_predictive_graduation <- function(x_t, n_t, x_c, n_c, n3 = 150, nsim = 
   y <- as.matrix(y)
   J <- ncol(y)
   ybar <- y / n_per
+  if (J == 1L) {
+    # a single period: nothing to smooth, tau is not identified
+    if (!is.null(taus)) {
+      out <- lapply(taus, function(tau) ybar[, 1]); names(out) <- paste0("fixed smoothing, tau=", taus)
+      return(list(est = out, tau_hat = NULL))
+    }
+    return(list(est = list(`learned smoothing (REML tau)` = ybar[, 1]), tau_hat = rep(NA_real_, nrow(y))))
+  }
   pt <- (y + 0.5) / (n_per + 1)
   v <- pt * (1 - pt) / n_per
   D <- diff(diag(J))
@@ -221,7 +229,7 @@ platform_time_machine <- function(shift, nsim = 4000, seed = NULL, p0 = 0.30, n_
   learned <- .tm_fit(y, n_per)
   fixed <- .tm_fit(y, n_per, taus = taus)
   est <- c(list(`current only` = ybar[, J], `pool all` = rowMeans(ybar)), learned$est, fixed$est)
-  mean_tau <- c(NA, NA, mean(learned$tau_hat), taus)
+  mean_tau <- c(NA, NA, if (J == 1L) NA_real_ else mean(learned$tau_hat), taus)
   tj <- truth[J]
   data.frame(method = names(est),
              bias = vapply(est, function(e) mean(e) - tj, numeric(1)),

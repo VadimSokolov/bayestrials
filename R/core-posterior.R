@@ -77,16 +77,31 @@ prob_superior_exact <- function(a1, b1, a0, b0, m) {
   v <- function(a, b) a * b / ((a + b)^2 * (a + b + 1))
   if (m >= 1) return(0)
   if (m <= -1) return(1)
-  cl <- function(x) pmin(pmax(x, 0), 1)
+  # point (p, x = 1 - p) on the narrower arm's quantile scale, each coordinate accurate at its own end
+  pt <- function(r, a, b, lower) {
+    if (lower) { p <- stats::qbeta(r, a, b); x <- stats::qbeta(r, b, a, lower.tail = FALSE) }
+    else { p <- stats::qbeta(r, a, b, lower.tail = FALSE); x <- stats::qbeta(r, b, a) }
+    small <- p < 0.5
+    list(p = ifelse(small, p, 1 - x), x = ifelse(small, 1 - p, x), small = small)
+  }
+  # Pr(other > t) (upper) or Pr(other < t) (lower) for t = p + shift, using the accurate end
+  tail_at <- function(q, shift, a, b, upper) {
+    tp <- ifelse(q$small, q$p + shift, 1 - (q$x - shift))
+    tx <- ifelse(q$small, 1 - (q$p + shift), q$x - shift)
+    tp <- pmin(pmax(tp, 0), 1); tx <- pmin(pmax(tx, 0), 1)
+    useP <- tp < 0.5
+    if (upper) ifelse(useP, stats::pbeta(tp, a, b, lower.tail = FALSE), stats::pbeta(tx, b, a))
+    else ifelse(useP, stats::pbeta(tp, a, b), stats::pbeta(tx, b, a, lower.tail = FALSE))
+  }
   if (v(a0, b0) <= v(a1, b1)) {
     # condition on p0 (narrower): Pr(p1 > p0 + m | p0)
-    gl <- function(u) stats::pbeta(cl(stats::qbeta(u, a0, b0) + m), a1, b1, lower.tail = FALSE)
-    gu <- function(w) stats::pbeta(cl(stats::qbeta(w, b0, a0) - m), b1, a1)
+    gl <- function(u) tail_at(pt(u, a0, b0, TRUE), m, a1, b1, TRUE)
+    gu <- function(w) tail_at(pt(w, a0, b0, FALSE), m, a1, b1, TRUE)
     kinks <- c(stats::pbeta(max(1 - m, 0), a0, b0), stats::pbeta(max(-m, 0), a0, b0))
   } else {
     # condition on p1 (narrower): Pr(p0 < p1 - m | p1)
-    gl <- function(u) stats::pbeta(cl(stats::qbeta(u, a1, b1) - m), a0, b0)
-    gu <- function(w) stats::pbeta(cl(stats::qbeta(w, b1, a1) + m), b0, a0, lower.tail = FALSE)
+    gl <- function(u) tail_at(pt(u, a1, b1, TRUE), -m, a0, b0, FALSE)
+    gu <- function(w) tail_at(pt(w, a1, b1, FALSE), -m, a0, b0, FALSE)
     kinks <- c(stats::pbeta(max(m, 0), a1, b1), stats::pbeta(min(1 + m, 1), a1, b1))
   }
   half <- function(g, cuts) {

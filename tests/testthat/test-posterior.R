@@ -109,3 +109,11 @@ test_that("hpd_beta warns outside the unimodal range", {
   expect_warning(hpd_beta(0.5, 2))
   expect_error(hpd_beta(-1, 2))
 })
+
+test_that("N1: prob_superior resolves reflected-quantile endpoint mass", {
+  expect_equal(prob_superior(.015, 1, .03, 1), 1 / 3, tolerance = 1e-8)
+  expect_equal(prob_superior(.03, 1, .015, 1), 2 / 3, tolerance = 1e-8)
+  expect_equal(prob_superior(.05, 1, .1, 1), 1 / 3, tolerance = 1e-8)
+  expect_equal(prob_superior(1, .015, 1, .03), 2 / 3, tolerance = 1e-8)
+  expect_equal(prob_superior(1, 1, 1, 1, margin = 0.2), 0.8^2 / 2, tolerance = 1e-9)
+})

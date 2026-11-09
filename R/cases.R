@@ -39,7 +39,7 @@ select_log_bf <- function(S, I, tau = 0.25) {
 #'
 #' Simulates Gaussian score paths on a grid of event counts (steps of two, plus the interim, planned and total event counts), calibrates the posterior bar p* to type I error `alpha`, and compares four rules: a hypothetical O'Brien-Fleming design with four equally spaced looks, an e-value mixture, the Bayes rule, and SELECT's actual design. The effect is benefit-positive, `theta = -log(HR)`. Paths are processed in batches to bound memory.
 #'
-#' The actual SELECT design (Lincoff et al. 2023) is one superiority interim at two thirds of the planned events followed by the final analysis at the planned events, with O'Brien-Fleming-type boundaries at one-sided level `alpha`, `gs_boundary(2, alpha, t = c(interim_events / design_events, 1))`. The two other group sequential and the continuous rules run to `d_tot` events if they do not cross; the actual design ends at `design_events` if it does not cross.
+#' The actual SELECT design (Lincoff et al. 2023) is one superiority interim at two thirds of the planned events followed by the final analysis at the planned events, with Lan-DeMets O'Brien-Fleming spending at the planned interim (817 of 1,225 events) as in SELECT's statistical analysis plan, at one-sided level `alpha`: `gs_spending_boundary(c(interim_events / design_events, 1), alpha, spending = "ld_obf")` (nominal one-sided levels about 0.00605 and 0.02314, z about 2.509 and 1.993 for the defaults). The two other group sequential and the continuous rules run to `d_tot` events if they do not cross; the actual design ends at `design_events` if it does not cross.
 #'
 #' Both group sequential comparators use boundaries `gs_boundary(K, alpha, t = actual information fractions)`, so they respect `alpha` and the event rounding.
 #'
@@ -73,7 +73,7 @@ select_simulate <- function(d_tot = 1270, HR = 0.80, nsim = 40000, tau = 0.25,
   kk <- vapply(fracs, function(f) which.min(abs(dg - f * d_tot)), 1L)
   kk2 <- match(c(d_int, design_events), dg)
   B <- gs_boundary(length(kk), alpha, t = dg[kk] / dg[kk[length(kk)]])
-  B2 <- gs_boundary(2, alpha, t = c(d_int / design_events, 1))
+  B2 <- gs_spending_boundary(c(d_int / design_events, 1), alpha = alpha, spending = "ld_obf")
   sI <- sqrt(Ig)
   paths <- function(th, nb) {
     x <- matrix(rnorm(K * nb, sd = sqrt(dI)), K, nb)

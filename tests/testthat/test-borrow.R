@@ -76,3 +76,9 @@ test_that("M4: borrow_basket_posterior is finite for extreme data", {
   r3 <- borrow_basket_posterior(c(12, 12), c(30, 30), nq = 21)
   expect_equal(r3$means[1], r3$means[2], tolerance = 1e-12)
 })
+
+test_that("M9: borrow_map_prior resolves tiny tau_scale", {
+  r <- borrow_map_prior(30, 100, tau_scale = 1e-4, nsamp = 2000, seed = 1)
+  expect_true(min(r$taus) <= 2e-6)
+  expect_true(sum(r$pw * r$taus) < 5e-4)
+})

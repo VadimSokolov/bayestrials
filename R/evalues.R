@@ -32,7 +32,13 @@ ev_log_mixture <- function(S, n, rho, sign = 1) {
   if (anyNA(n) || any(n < 0)) stop("`n` must be nonnegative")
   if (!all(sign %in% c(-1, 1))) stop("`sign` must be 1 or -1")
   A <- n + 1 / rho^2
-  log(2 / (rho * sqrt(A))) + S^2 / (2 * A) + stats::pnorm(sign * S / sqrt(A), log.p = TRUE)
+  z <- sign * S / sqrt(A)
+  # log Phi(z) + z^2 / 2 without forming Inf - Inf for large |z|: for z << 0 use the Mills-ratio form
+  zz <- pmin(z, -30)
+  lm <- ifelse(z < -30,
+               -log(-zz) - 0.5 * log(2 * pi) + log1p(-1 / zz^2 + 3 / zz^4 - 15 / zz^6 + 105 / zz^8),
+               stats::pnorm(z, log.p = TRUE) + z^2 / 2)
+  log(2 / (rho * sqrt(A))) + lm
 }
 
 #' Random walks of N(delta, 1) increments

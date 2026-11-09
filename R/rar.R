@@ -64,12 +64,13 @@ rar_alloc_probs <- function(rule, S, F, n_done, N, K, floor = 0.10, burn = 0.25,
   S <- as.matrix(S); F <- as.matrix(F)
   reps <- nrow(S)
   eq <- matrix(1 / K, reps, K)
-  if (rule == "equal" || (rule != "ts" && n_done < burn * N)) return(eq)
   lower <- if (K > 2) floor / K else floor
   if (rule == "capped") {
+    if (!is.finite(floor) || floor < 0) stop("`floor` must be finite and nonnegative")
     if (fixed_ctrl && lower * (K - 1) > 1 - 1 / K + 1e-12) stop("allocation floor is infeasible")
     if (!fixed_ctrl && lower * K > 1 + 1e-12) stop("allocation floor is infeasible")
   }
+  if (rule == "equal" || (rule != "ts" && n_done < burn * N)) return(eq)
   idx <- rep(seq_len(K), each = M)
   d <- array(stats::rbeta(reps * M * K, S[, idx] + 1, F[, idx] + 1), c(reps, M, K))
   if (rule == "capped" && fixed_ctrl) {
@@ -113,6 +114,8 @@ rar_alloc_probs <- function(rule, S, F, n_done, N, K, floor = 0.10, burn = 0.25,
 #' @export
 rar_simulate <- function(p, N, rule, drift = 0, reps = 4000, batch = 20, seed = NULL,
                          n_strata = 4, fixed_ctrl = FALSE, ...) {
+  if (length(N) != 1L || !is.finite(N) || N < 1 || N != round(N)) stop("`N` must be a finite integer >= 1")
+  if (length(batch) != 1L || !is.finite(batch) || batch < 1 || batch != round(batch)) stop("`batch` must be a positive integer")
   if (!is.null(seed)) set.seed(seed)
   K <- length(p)
   S <- matrix(0, reps, K); F <- matrix(0, reps, K)
@@ -120,6 +123,7 @@ rar_simulate <- function(p, N, rule, drift = 0, reps = 4000, batch = 20, seed = 
   done <- 0L
   while (done < N) {
     size <- as.integer(min(batch, N - done))
+    if (size < 1L) stop("internal error: empty batch")
     t <- (done + size / 2) / N
     pr <- rar_alloc_probs(rule, S, F, done, N, K, fixed_ctrl = fixed_ctrl, ...)
     cum <- pr

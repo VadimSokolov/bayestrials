@@ -193,7 +193,7 @@ borrow_basket_posterior <- function(y, n, mu_grid = NULL, tau_grid = NULL, nq = 
 
 #' Meta-analytic-predictive prior from historical controls (normal-normal, logit scale)
 #'
-#' Model: empirical logits `est_i = log((y_i + 0.5) / (n_i - y_i + 0.5))` with known variances `se2_i`, `est_i ~ N(theta_i, se2_i)`, `theta_i ~ N(mu, tau^2)`. The prior on the overall logit mean `mu` is flat (improper) and is integrated out analytically, which gives the factor `sqrt(v)` in the marginal posterior of `tau`; the prior on `tau` is half-normal with scale `tau_scale`. The posterior of `tau` is evaluated on a grid with step about 0.005 starting at 0.001.
+#' Model: empirical logits `est_i = log((y_i + 0.5) / (n_i - y_i + 0.5))` with known variances `se2_i`, `est_i ~ N(theta_i, se2_i)`, `theta_i ~ N(mu, tau^2)`. The prior on the overall logit mean `mu` is flat (improper) and is integrated out analytically, which gives the factor `sqrt(v)` in the marginal posterior of `tau`; the prior on `tau` is half-normal with scale `tau_scale`. The posterior of `tau` is evaluated on a grid with step about 0.005 starting at `min(0.001, tau_scale / 100)` (log-spaced below 0.001 when that is smaller).
 #'
 #' The grid is not fixed: its upper end starts at `max(2, 4 * tau_scale)` and is doubled until the posterior mass beyond it (evaluated by trapezoid on the next doubling) is below `tail_tol` relative to the total, so strongly heterogeneous historical data or a large `tau_scale` are not silently truncated. The retained range and omitted mass are returned as `tau_max` and `tail_mass`.
 #'
@@ -222,7 +222,13 @@ borrow_map_prior <- function(y, n, tau_scale = 0.5, nsamp = 200000, seed = NULL,
     }
     list(lp = lp, mus = mus, vmu = vmu)
   }
-  grid <- function(tmax) seq(0.001, tmax, length.out = max(400L, ceiling(200 * tmax)))
+  lo <- min(0.001, tau_scale / 100)
+  grid <- function(tmax) {
+    # uniform from 0.001; log-spaced below 0.001 when tau_scale is small enough to need it
+    base <- seq(0.001, tmax, length.out = max(400L, ceiling(200 * tmax)))
+    if (lo >= 0.001) return(base)
+    c(exp(seq(log(lo), log(0.001), length.out = 60))[-60], base)
+  }
   tmax <- max(2, 4 * tau_scale)
   repeat {
     taus <- grid(tmax)
@@ -230,13 +236,14 @@ borrow_map_prior <- function(y, n, tau_scale = 0.5, nsamp = 200000, seed = NULL,
     ext <- seq(tmax, 2 * tmax, length.out = max(400L, ceiling(200 * tmax)))
     lpe <- fit(ext)$lp
     ref <- max(f$lp, lpe)
-    tot <- sum(exp(f$lp - ref)) * (taus[2] - taus[1])
+    tot <- .trapz(exp(f$lp - ref), taus)
     tail_mass <- .trapz(exp(lpe - ref), ext) / (tot + .trapz(exp(lpe - ref), ext))
     if (tail_mass < tail_tol || tmax > 1e4) break
     tmax <- 2 * tmax
   }
   if (tail_mass >= tail_tol) warning("MAP prior: posterior of tau not negligible beyond ", tmax)
-  pw <- exp(f$lp - max(f$lp)); pw <- pw / sum(pw)
+  wq <- if (lo >= 0.001) rep(1, length(taus)) else diff(c(taus[1], (taus[-1] + taus[-length(taus)]) / 2, taus[length(taus)]))
+  pw <- exp(f$lp - max(f$lp)) * wq; pw <- pw / sum(pw)
   idx <- sample.int(length(taus), nsamp, replace = TRUE, prob = pw)
   theta <- rnorm(nsamp, f$mus[idx], sqrt(f$vmu[idx])) + rnorm(nsamp, 0, taus[idx])
   p <- plogis(theta)

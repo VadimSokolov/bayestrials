@@ -65,3 +65,8 @@ test_that("M14: e-value inputs are validated", {
   w <- ev_betting_paths(0.5, 0.5, 1, 10, 50, seed = 1)
   expect_false(anyNA(w))
 })
+
+test_that("M4: ev_mixture avoids Inf - Inf", {
+  expect_equal(ev_mixture(-1e200, 100, 1), 7.98e-201, tolerance = 0.01)
+  expect_equal(ev_mixture(-1000, 100, 1), 0.000798, tolerance = 0.01)
+})

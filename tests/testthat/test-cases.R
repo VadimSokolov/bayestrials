@@ -68,7 +68,7 @@ test_that("actual SELECT design comparator", {
   expect_equal(select_design$observed_events, 1270L)
   expect_equal(select_design$design_obf_bounds, gs_boundary(2, 0.025, t = c(817 / 1225, 1)), tolerance = 1e-4)
   r <- select_simulate(1270, 0.80, nsim = 3000, seed = 9, batch = 1500)
-  expect_equal(r$actual_bounds, gs_boundary(2, 0.025, t = c(817 / 1225, 1)), tolerance = 1e-8)
+  expect_equal(r$actual_bounds, gs_spending_boundary(c(817 / 1225, 1), alpha = 0.025, spending = "ld_obf"), tolerance = 1e-8)
   expect_equal(r$max_events[4], 1225)
   a <- r$rows[4, ]
   expect_match(a$rule, "SELECT actual design")
@@ -81,4 +81,9 @@ test_that("actual SELECT design comparator", {
   # under the design HR the power is close to 90%
   r83 <- select_simulate(1270, 0.83, nsim = 4000, seed = 9, batch = 2000)$rows[4, ]
   expect_equal(r83$power, 0.90, tolerance = 0.05)
+})
+
+test_that("SELECT actual design uses Lan-DeMets OBF spending at the planned interim", {
+  r <- select_simulate(nsim = 400, seed = 1)
+  expect_equal(unname(r$actual_bounds), c(2.509, 1.993), tolerance = 0.01)
 })
