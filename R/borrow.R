@@ -130,9 +130,11 @@ borrow_robust_weight <- function(yc, nc, yh, nh, w = 0.8) {
   vapply(yc, function(k) borrow_post_control(k, nc, comps)$w[1], numeric(1))
 }
 
-#' Dynamic effective sample size of a robust prior
+#' Dynamic effective sample size of a robust prior (mixture-weighted proxy)
 #'
-#' Posterior weight on the informative component times its prior ESS (nh + 2).
+#' Convention: the effective sample size (ESS) of a Beta(a, b) component is `a + b`, so the informative component Beta(1 + yh, 1 + nh - yh) has ESS `nh + 2` and the vague Beta(1, 1) component has ESS 2. The function returns the posterior-weight-averaged component ESS, `w_post * (nh + 2) + (1 - w_post) * 2`, where `w_post` is the posterior weight on the informative component after observing `yc` of `nc` current controls.
+#'
+#' This is a simple proxy, not a general mixture ESS: it is not the moment-matching, predictive-consistency (Morita, Thall and Mueller) or expected-local-information-ratio (Neuenschwander et al.) definition. In particular it equals 2 when `w = 0` (only the vague component remains) and `nh + 2` when `w = 1`. An earlier version multiplied the informative weight by `nh + 2` alone and so returned 0 at `w = 0`.
 #'
 #' @inheritParams borrow_robust_weight
 #' @return Numeric vector.
@@ -140,7 +142,8 @@ borrow_robust_weight <- function(yc, nc, yh, nh, w = 0.8) {
 #' borrow_ess_robust(9, 30, 30, 100)
 #' @export
 borrow_ess_robust <- function(yc, nc, yh, nh, w = 0.8) {
-  borrow_robust_weight(yc, nc, yh, nh, w) * (nh + 2)
+  wp <- borrow_robust_weight(yc, nc, yh, nh, w)
+  wp * (nh + 2) + (1 - wp) * 2
 }
 
 #' Hierarchical logit-normal basket model on a grid
@@ -182,32 +185,55 @@ borrow_basket_posterior <- function(y, n, mu_grid = NULL, tau_grid = NULL, nq = 
 
 #' Meta-analytic-predictive prior from historical controls (normal-normal, logit scale)
 #'
+#' Model: empirical logits `est_i = log((y_i + 0.5) / (n_i - y_i + 0.5))` with known variances `se2_i`, `est_i ~ N(theta_i, se2_i)`, `theta_i ~ N(mu, tau^2)`. The prior on the overall logit mean `mu` is flat (improper) and is integrated out analytically, which gives the factor `sqrt(v)` in the marginal posterior of `tau`; the prior on `tau` is half-normal with scale `tau_scale`. The posterior of `tau` is evaluated on a grid with step about 0.005 starting at 0.001.
+#'
+#' The grid is not fixed: its upper end starts at `max(2, 4 * tau_scale)` and is doubled until the posterior mass beyond it (evaluated by trapezoid on the next doubling) is below `tail_tol` relative to the total, so strongly heterogeneous historical data or a large `tau_scale` are not silently truncated. The retained range and omitted mass are returned as `tau_max` and `tail_mass`.
+#'
 #' @param y,n Historical responders and patients.
 #' @param tau_scale Half-normal scale for the between-trial sd.
 #' @param nsamp Number of predictive samples.
 #' @param seed Optional seed.
-#' @return List with `samples` (control rate in a new trial), `beta` (moment-matched `a`, `b`), `taus`, `pw`.
+#' @param tail_tol Tolerated omitted posterior mass of `tau`, relative to the total.
+#' @return List with `samples` (control rate in a new trial), `beta` (moment-matched `a`, `b`), `taus`, `pw` (posterior grid weights of `tau`), `tau_max` (upper end of the grid) and `tail_mass` (estimated posterior mass of `tau` beyond it).
 #' @examples
 #' borrow_map_prior(c(24, 33, 27, 45), c(80, 100, 70, 150), nsamp = 1000, seed = 1)$beta
 #' @export
-borrow_map_prior <- function(y, n, tau_scale = 0.5, nsamp = 200000, seed = NULL) {
+borrow_map_prior <- function(y, n, tau_scale = 0.5, nsamp = 200000, seed = NULL, tail_tol = 1e-6) {
   if (!is.null(seed)) set.seed(seed)
   y <- as.numeric(y); n <- as.numeric(n)
   est <- log((y + 0.5) / (n - y + 0.5)); se2 <- 1 / (y + 0.5) + 1 / (n - y + 0.5)
-  taus <- seq(0.001, 2.0, length.out = 400)
-  lp <- dnorm(taus, 0, tau_scale, log = TRUE) + log(2)
-  mus <- numeric(length(taus)); vmu <- numeric(length(taus))
-  for (i in seq_along(taus)) {
-    w <- 1 / (se2 + taus[i]^2)
-    m <- sum(w * est) / sum(w); v <- 1 / sum(w)
-    lp[i] <- lp[i] + 0.5 * log(v) - 0.5 * sum(log(se2 + taus[i]^2)) - 0.5 * sum(w * (est - m)^2)
-    mus[i] <- m; vmu[i] <- v
+  # log marginal posterior density of tau (flat prior on mu integrated out), mean and variance of mu | tau
+  fit <- function(taus) {
+    lp <- dnorm(taus, 0, tau_scale, log = TRUE) + log(2)
+    mus <- numeric(length(taus)); vmu <- numeric(length(taus))
+    for (i in seq_along(taus)) {
+      w <- 1 / (se2 + taus[i]^2)
+      m <- sum(w * est) / sum(w); v <- 1 / sum(w)
+      lp[i] <- lp[i] + 0.5 * log(v) - 0.5 * sum(log(se2 + taus[i]^2)) - 0.5 * sum(w * (est - m)^2)
+      mus[i] <- m; vmu[i] <- v
+    }
+    list(lp = lp, mus = mus, vmu = vmu)
   }
-  pw <- exp(lp - max(lp)); pw <- pw / sum(pw)
+  grid <- function(tmax) seq(0.001, tmax, length.out = max(400L, ceiling(200 * tmax)))
+  tmax <- max(2, 4 * tau_scale)
+  repeat {
+    taus <- grid(tmax)
+    f <- fit(taus)
+    ext <- seq(tmax, 2 * tmax, length.out = max(400L, ceiling(200 * tmax)))
+    lpe <- fit(ext)$lp
+    ref <- max(f$lp, lpe)
+    tot <- sum(exp(f$lp - ref)) * (taus[2] - taus[1])
+    tail_mass <- .trapz(exp(lpe - ref), ext) / (tot + .trapz(exp(lpe - ref), ext))
+    if (tail_mass < tail_tol || tmax > 1e4) break
+    tmax <- 2 * tmax
+  }
+  if (tail_mass >= tail_tol) warning("MAP prior: posterior of tau not negligible beyond ", tmax)
+  pw <- exp(f$lp - max(f$lp)); pw <- pw / sum(pw)
   idx <- sample.int(length(taus), nsamp, replace = TRUE, prob = pw)
-  theta <- rnorm(nsamp, mus[idx], sqrt(vmu[idx])) + rnorm(nsamp, 0, taus[idx])
+  theta <- rnorm(nsamp, f$mus[idx], sqrt(f$vmu[idx])) + rnorm(nsamp, 0, taus[idx])
   p <- plogis(theta)
   m <- mean(p); v <- var(p)
   k <- m * (1 - m) / v - 1
-  list(samples = p, beta = c(a = m * k, b = (1 - m) * k), taus = taus, pw = pw)
+  list(samples = p, beta = c(a = m * k, b = (1 - m) * k), taus = taus, pw = pw,
+       tau_max = tmax, tail_mass = tail_mass)
 }

@@ -153,18 +153,60 @@ platform_predictive_graduation <- function(x_t, n_t, x_c, n_c, n3 = 150, nsim = 
   c(pp = mean(z > qnorm(0.025, lower.tail = FALSE)), post = mean(pt > pcn))
 }
 
+# Smoothing fit for one data set: uses only the observed counts `y` (rows = replicates, columns =
+# periods) and the per-period sample size `n_per`. Nothing about the data-generating rates enters.
+# Observation variances are estimated from the data, v_j = pt_j (1 - pt_j) / n_per with
+# pt_j = (y_j + 0.5) / (n_per + 1). The period means follow a first-order Gaussian random walk,
+# mu_j = mu_{j-1} + N(0, tau^2), with a flat prior on mu_1. Given tau the estimate of the last period
+# mean is the posterior mean. With `taus = NULL`, tau is estimated per replicate by maximising the
+# marginal (restricted) likelihood of the period differences, Dy ~ N(0, D V D' + tau^2 I).
+.tm_fit <- function(y, n_per, taus = NULL, tau_grid = exp(seq(log(1e-3), log(1), length.out = 40))) {
+  y <- as.matrix(y)
+  J <- ncol(y)
+  ybar <- y / n_per
+  pt <- (y + 0.5) / (n_per + 1)
+  v <- pt * (1 - pt) / n_per
+  D <- diff(diag(J))
+  DtD <- crossprod(D)
+  wts_for <- function(vv, tau) {
+    P <- diag(1 / vv, J) + DtD / tau^2
+    solve(P)[J, ] / vv
+  }
+  if (!is.null(taus)) {
+    out <- lapply(taus, function(tau) {
+      vapply(seq_len(nrow(y)), function(r) sum(wts_for(v[r, ], tau) * ybar[r, ]), numeric(1))
+    })
+    names(out) <- paste0("fixed smoothing, tau=", taus)
+    return(list(est = out, tau_hat = NULL))
+  }
+  dy <- ybar %*% t(D)
+  tau_hat <- numeric(nrow(y)); est <- numeric(nrow(y))
+  for (r in seq_len(nrow(y))) {
+    DVD <- D %*% (v[r, ] * t(D))
+    ll <- vapply(tau_grid, function(tau) {
+      Q <- DVD + diag(tau^2, J - 1)
+      ch <- chol(Q)
+      -sum(log(diag(ch))) - 0.5 * sum(backsolve(ch, dy[r, ], transpose = TRUE)^2)
+    }, numeric(1))
+    tau_hat[r] <- tau_grid[which.max(ll)]
+    est[r] <- sum(wts_for(v[r, ], tau_hat[r]) * ybar[r, ])
+  }
+  list(est = list(`learned smoothing (REML tau)` = est), tau_hat = tau_hat)
+}
+
 #' Time machine: estimating the current control rate under period drift
 #'
-#' True rate in period j is `p0 + shift[j]`. Estimators: current period only, pool all periods, and a
-#' random-walk smoother on period means with step sd tau. Returns bias and rmse for each.
+#' Simulation study of estimators of the control rate in the current (last) period when the true control rate drifts across periods. The true rate in period `j` is `p0 + shift[j]` and is used only to generate the binomial counts and to score the estimators. Every estimator is computed from the simulated counts and `n_per` alone, so identical observed counts give identical estimates whatever the scenario that produced them.
+#'
+#' Estimators: `current only` (last period mean), `pool all` (mean over all periods), `learned smoothing (REML tau)`, and `fixed smoothing, tau=...` for each value in `taus`. The smoothers are first-order Gaussian random walks on the period means with step sd `tau`, a flat prior on the first period, and observation variances estimated from the observed period proportions (with a 0.5 continuity correction). In the learned version `tau` is estimated in each replicate by maximising the marginal (restricted) likelihood of the period differences over a log-spaced grid on `[0.001, 1]`; the fixed versions are illustrations with a prespecified `tau`. This is a first-order Gaussian approximation in the spirit of the Bayesian Time Machine, not the published second-order binomial model: it does not reproduce its results.
 #'
 #' @param shift Vector of period shifts (length `periods`).
 #' @param nsim Number of simulations.
 #' @param seed Optional seed.
 #' @param p0 Baseline rate.
 #' @param n_per Patients per period.
-#' @param taus Random-walk step sds.
-#' @return Data frame with `method`, `bias`, `rmse`.
+#' @param taus Random-walk step sds for the fixed-smoothing illustrations.
+#' @return Data frame with `method`, `bias`, `rmse`, and `mean_tau` (average step sd used: the average estimate for the learned smoother, `tau` for fixed smoothers, `NA` otherwise).
 #' @examples
 #' platform_time_machine(c(0, 0.02, 0.04, 0.06), nsim = 200, seed = 1)
 #' @export
@@ -173,18 +215,17 @@ platform_time_machine <- function(shift, nsim = 4000, seed = NULL, p0 = 0.30, n_
   if (!is.null(seed)) set.seed(seed)
   truth <- p0 + as.numeric(shift)
   J <- length(truth)
-  v <- truth * (1 - truth) / n_per
-  ybar <- matrix(rbinom(nsim * J, n_per, rep(truth, each = nsim)), nsim, J) / n_per
-  D <- diff(diag(J))
-  est <- list(`current only` = ybar[, J], `pool all` = rowMeans(ybar))
-  for (tau in taus) {
-    P <- diag(1 / v, J) + crossprod(D) / tau^2
-    wts <- solve(P)[J, ] / v
-    est[[paste0("time machine, tau=", tau)]] <- as.vector(ybar %*% wts)
-  }
+  y <- matrix(rbinom(nsim * J, n_per, rep(truth, each = nsim)), nsim, J)
+  # from here on only the observed counts are used
+  ybar <- y / n_per
+  learned <- .tm_fit(y, n_per)
+  fixed <- .tm_fit(y, n_per, taus = taus)
+  est <- c(list(`current only` = ybar[, J], `pool all` = rowMeans(ybar)), learned$est, fixed$est)
+  mean_tau <- c(NA, NA, mean(learned$tau_hat), taus)
   tj <- truth[J]
   data.frame(method = names(est),
              bias = vapply(est, function(e) mean(e) - tj, numeric(1)),
              rmse = vapply(est, function(e) sqrt(mean((e - tj)^2)), numeric(1)),
+             mean_tau = mean_tau,
              row.names = NULL)
 }

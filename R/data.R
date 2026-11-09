@@ -8,10 +8,10 @@
 
 #' SELECT design constants
 #'
-#' Constants of the SELECT reconstruction in the cases chapter: 1270 first-event totals, hazard ratio 0.80, prior sd 0.25 for log HR, four equally spaced looks with one-sided 0.025 O'Brien-Fleming bounds on the Z scale, information 1/4 per event, linear enrolment over 36 months in a 60 month trial.
+#' Constants of the SELECT case study in the cases chapter, benefit-positive convention `theta = -log(HR)`. Two groups of fields. (1) The book's hypothetical reconstruction, run at the observed data: 1270 first-event totals, hazard ratio 0.80, prior sd 0.25 for `-log HR`, four equally spaced looks with one-sided 0.025 O'Brien-Fleming bounds on the Z scale, information 1/4 per event, linear enrolment over 36 months in a 60 month trial. (2) SELECT's actual design: hazard ratio 0.83 with 90% power at one-sided 0.025 and 1,225 planned events, one superiority interim at two thirds of the planned events (817) with O'Brien-Fleming-type bounds, then the final analysis; observed hazard ratio 0.80 and 1,270 events.
 #'
-#' @format A list with `alpha`, `tau`, `d_tot`, `HR`, `fractions`, `obf_bounds`, `info_per_event`, `T_en`, `T_end`, `rewind_d_tot`, `rewind_HR`.
-#' @source SELECT: Lincoff et al. (2023), NEJM 389, 2221-2232 (semaglutide, HR 0.80); REWIND: Gerstein et al. (2019), Lancet 394, 121-130 (HR 0.88, 1257 events); bounds from Polson and Sokolov's calibration code.
+#' @format A list with `alpha`, `tau`, `d_tot`, `HR`, `fractions`, `obf_bounds`, `info_per_event`, `T_en`, `T_end`, `rewind_d_tot`, `rewind_HR`, and the actual-design fields `design_HR`, `design_power`, `design_alpha`, `design_events`, `design_interim_fraction`, `design_interim_events`, `design_obf_bounds` (two-look bounds at information fractions 817/1225 and 1), `observed_HR`, `observed_events`.
+#' @source SELECT: Lincoff et al. (2023), NEJM 389, 2221-2232 (semaglutide, observed HR 0.80); REWIND: Gerstein et al. (2019), Lancet 394, 121-130 (HR 0.88, 1257 events); bounds from Polson and Sokolov's calibration code.
 "select_design"
 
 #' ClinicalTrials.gov counts by year and term
