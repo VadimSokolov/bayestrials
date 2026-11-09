@@ -7,14 +7,15 @@
 gs_power_drift(t, bounds, lower = NULL, target = 0.9)
 }
 \arguments{
-\item{t}{Information fractions (increasing).}
+\item{t}{Information fractions (strictly increasing, separated by at least 1e-9).}
 
 \item{bounds}{Upper z boundaries, one per look.}
 
 \item{lower}{Lower (futility) z boundaries, or \code{NULL} for none. \code{-Inf}
-entries mean no futility stop at that look.}
+entries mean no futility stop at that look. Must not exceed \code{bounds}.}
 
-\item{target}{Target power (default 0.9).}
+\item{target}{Target power (default 0.9), strictly between 0 and 1. The
+root is bracketed adaptively, so any attainable target works.}
 }
 \value{
 The drift \eqn{E[Z_K]} at which the overall probability of crossing

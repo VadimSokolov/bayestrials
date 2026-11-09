@@ -7,7 +7,7 @@
 select_log_bf(S, I, tau = 0.25)
 }
 \arguments{
-\item{S}{score statistic.}
+\item{S}{score statistic (positive for benefit).}
 
 \item{I}{information.}
 
@@ -17,8 +17,8 @@ select_log_bf(S, I, tau = 0.25)
 numeric.
 }
 \description{
-Log Bayes factor (mixture e-value) for the score process
+Two-sided normal mixture, \code{theta ~ N(0, tau^2)} against \code{theta = 0}. It depends on \code{S^2}, so a rule using it for benefit must also require \code{S > 0}.
 }
 \examples{
-select_log_bf(-10, 238)
+select_log_bf(10, 238)
 }

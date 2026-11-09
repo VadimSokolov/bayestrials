@@ -9,9 +9,9 @@ ev_mixture(S, n, rho, sign = 1)
 \arguments{
 \item{S}{Running sum(s).}
 
-\item{n}{Sample size(s).}
+\item{n}{Sample size(s), nonnegative.}
 
-\item{rho}{Mixing standard deviation.}
+\item{rho}{Mixing standard deviation, positive.}
 
 \item{sign}{\code{1} for the one-sided (theta > 0) alternative, \code{-1} for the other side.}
 }
@@ -20,7 +20,10 @@ The e-value(s).
 }
 \description{
 Closed-form mixture e-process for H0: theta <= 0 when \code{S} is the running sum
-of N(theta, 1) observations.
+of N(theta, 1) observations. Computed on the log scale
+(\code{\link[=ev_log_mixture]{ev_log_mixture()}}) and exponentiated, so it is finite (or correctly \code{Inf}
+or 0) wherever the e-value is representable, for example
+\code{ev_mixture(-1000, 100, 1)} is about 0.000798.
 }
 \examples{
 ev_mixture(5, 100, 0.15)

@@ -7,7 +7,7 @@
 select_post_prob(S, I, tau = 0.25)
 }
 \arguments{
-\item{S}{score statistic.}
+\item{S}{score statistic (positive for benefit).}
 
 \item{I}{information.}
 
@@ -17,8 +17,8 @@ select_post_prob(S, I, tau = 0.25)
 numeric.
 }
 \description{
-Pr(theta < 0 | data), theta = log HR, prior N(0, tau^2), score S, information I.
+Pr(theta > 0 | data) with benefit-positive \code{theta = -log(HR)}, prior N(0, tau^2), score S (mean \code{theta * I}, so S > 0 favours the treatment), information I.
 }
 \examples{
-select_post_prob(-10, 238)
+select_post_prob(10, 238)
 }

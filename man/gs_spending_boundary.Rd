@@ -12,7 +12,7 @@ gs_spending_boundary(
 )
 }
 \arguments{
-\item{t}{Information fractions.}
+\item{t}{Information fractions (strictly increasing, in (0, 1]).}
 
 \item{alpha}{One-sided level.}
 
@@ -20,11 +20,18 @@ gs_spending_boundary(
 \eqn{2 - 2\Phi(z_{\alpha/2}/\sqrt{t})}) or \code{"ld_pocock"}
 (\eqn{\alpha \log(1 + (e-1)t)}).}
 
-\item{h}{Grid step for the recursion (smaller is more accurate and slower).}
+\item{h}{Retained for backward compatibility and ignored: the recursion no
+longer uses a fixed grid step (accuracy is controlled by the panel width).}
 }
 \value{
 Numeric vector of z boundaries.
 }
 \description{
-Lan-DeMets alpha-spending boundaries
+Boundaries are found look by look: the sub-density of the Brownian score
+below the earlier boundaries is carried forward with the same panelled
+Gauss-Legendre recursion as \code{\link[=gs_crossing_two_sided]{gs_crossing_two_sided()}}, and each boundary is
+the root of the incremental crossing probability. The spending increments
+and the root equation are evaluated on the log scale, so looks with
+negligible spending (for example \code{t = 0.001} under O'Brien-Fleming spending)
+give large finite boundaries rather than overflow.
 }

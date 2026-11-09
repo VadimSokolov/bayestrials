@@ -7,27 +7,38 @@
 gs_crossing_two_sided(t, bounds, lower = NULL, drift = 0, nnode = 160)
 }
 \arguments{
-\item{t}{Information fractions (increasing).}
+\item{t}{Information fractions (strictly increasing, separated by at least 1e-9).}
 
 \item{bounds}{Upper z boundaries, one per look.}
 
 \item{lower}{Lower (futility) z boundaries, or \code{NULL} for none. \code{-Inf}
-entries mean no futility stop at that look.}
+entries mean no futility stop at that look. Must not exceed \code{bounds}.}
 
 \item{drift}{Expected value of the final z statistic (\code{theta * sqrt(I_max)}).}
 
-\item{nnode}{Number of quadrature nodes.}
+\item{nnode}{Minimum number of quadrature nodes per look.}
 }
 \value{
 A list with \code{up} and \code{down}, per-look probabilities of first
 crossing the upper and lower boundary.
 }
 \description{
-Armitage, McPherson and Rowe (1969) recursion with Gauss-Legendre
-quadrature. The score \eqn{S(t)} is Brownian motion with drift \code{drift} per
-unit of information fraction; the statistic at look k is
-\eqn{Z_k = S(t_k)/\sqrt{t_k}}. Unlike \code{\link[=gs_crossing_prob]{gs_crossing_prob()}} it accepts a lower
-(futility) boundary and reports the mass leaving through it.
+Armitage, McPherson and Rowe (1969) recursion. The score \eqn{S(t)} is
+Brownian motion with drift \code{drift} per unit of information fraction; the
+statistic at look k is \eqn{Z_k = S(t_k)/\sqrt{t_k}}. Unlike
+\code{\link[=gs_crossing_prob]{gs_crossing_prob()}} it accepts a lower (futility) boundary and reports the
+mass leaving through it.
+}
+\details{
+The sub-density of the score that has not yet stopped is carried between
+looks on panelled Gauss-Legendre nodes. The panel width at each look is tied
+to the neighbouring information increments (a panel is at most 2.5 standard
+deviations of the shorter adjacent transition), so closely spaced or
+irregular looks are resolved, and \code{nnode} is a lower bound on the number of nodes per look. The
+supplied boundaries are applied exactly: the integration range is truncated
+separately, 9 standard deviations around the unconstrained mean (omitted
+mass below 1e-18), and a boundary beyond that range changes nothing. A
+warning is issued if the returned probabilities sum to more than one.
 }
 \examples{
 gs_crossing_two_sided((1:4) / 4, gs_boundary(4), drift = 3)$up

@@ -24,14 +24,16 @@ platform_time_machine(
 
 \item{n_per}{Patients per period.}
 
-\item{taus}{Random-walk step sds.}
+\item{taus}{Random-walk step sds for the fixed-smoothing illustrations.}
 }
 \value{
-Data frame with \code{method}, \code{bias}, \code{rmse}.
+Data frame with \code{method}, \code{bias}, \code{rmse}, and \code{mean_tau} (average step sd used: the average estimate for the learned smoother, \code{tau} for fixed smoothers, \code{NA} otherwise).
 }
 \description{
-True rate in period j is \code{p0 + shift[j]}. Estimators: current period only, pool all periods, and a
-random-walk smoother on period means with step sd tau. Returns bias and rmse for each.
+Simulation study of estimators of the control rate in the current (last) period when the true control rate drifts across periods. The true rate in period \code{j} is \code{p0 + shift[j]} and is used only to generate the binomial counts and to score the estimators. Every estimator is computed from the simulated counts and \code{n_per} alone, so identical observed counts give identical estimates whatever the scenario that produced them.
+}
+\details{
+Estimators: \verb{current only} (last period mean), \verb{pool all} (mean over all periods), \verb{learned smoothing (REML tau)}, and \verb{fixed smoothing, tau=...} for each value in \code{taus}. The smoothers are first-order Gaussian random walks on the period means with step sd \code{tau}, a flat prior on the first period, and observation variances estimated from the observed period proportions (with a 0.5 continuity correction). In the learned version \code{tau} is estimated in each replicate by maximising the marginal (restricted) likelihood of the period differences over a log-spaced grid on \verb{[0.001, 1]}; the fixed versions are illustrations with a prespecified \code{tau}. This is a first-order Gaussian approximation in the spirit of the Bayesian Time Machine, not the published second-order binomial model: it does not reproduce its results.
 }
 \examples{
 platform_time_machine(c(0, 0.02, 0.04, 0.06), nsim = 200, seed = 1)

@@ -19,7 +19,7 @@ rand_bits_lcg(n, seed = 1, a = 75, m = 65537)
 An integer vector of 0/1 of length \code{n}.
 }
 \description{
-Iterates x_{k+1} = a x_k mod m from x_1 = \code{seed} and returns the indicator
+Iterates \verb{x[k+1] = a * x[k] mod m} from \code{x[1] = seed} and returns the indicator
 x_k > m/2 rounded down. The default is the 16-bit generator 75 x mod 65537
 (the ZX81 generator), a short formula whose bits look random to a compressor.
 }

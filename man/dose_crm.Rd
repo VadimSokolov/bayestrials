@@ -15,7 +15,7 @@ dose_crm(
 \arguments{
 \item{p}{True DLT probabilities by dose.}
 
-\item{skeleton}{Prior guesses of DLT probabilities.}
+\item{skeleton}{Prior guesses of DLT probabilities, one per dose (same length as \code{p}).}
 
 \item{N}{Maximum sample size.}
 
@@ -27,7 +27,19 @@ dose_crm(
 List with \code{selected}, \code{n}, \code{y} as in \code{\link[=dose_three_plus_three]{dose_three_plus_three()}}.
 }
 \description{
-Posterior of the model parameter is computed on a grid with a N(0, 1.34) prior on its log.
+Dose-toxicity model \code{p_d(a) = skeleton_d^exp(a)} with a N(0, 1.34) prior on \code{a}. The posterior is
+computed on a grid of 401 equally spaced values of \code{a} on the interval from -4 to 4 (the prior and posterior are
+truncated to this range and renormalised on it). The trial starts at dose 1 and enrols \code{N \%/\% cohort}
+cohorts of size \code{cohort} (patients beyond \code{cohort * (N \%/\% cohort)} are not enrolled). After each
+cohort the posterior is updated and: (i) the trial stops with no dose selected (\code{selected = 0}) if
+the posterior probability that the lowest dose's toxicity exceeds \code{target} is more than 0.90 (this
+safety cutoff is checked after every cohort, including the first, with no minimum number of
+patients); otherwise (ii) the recommended dose is the one whose posterior mean toxicity is closest to
+\code{target} (either side of the target, so the recommended dose can exceed the target) and (iii) the next
+cohort is treated at that dose, except that escalation never skips: the next dose is at most one above
+the current one, while de-escalation can jump several levels. The selected dose is the recommendation
+computed after the last cohort. It is not restricted by the no-skipping rule and may be a dose that was
+never given. There is no early stopping for sample size or for a precisely estimated MTD.
 }
 \examples{
 set.seed(1); dose_crm(c(0.05, 0.1, 0.25, 0.4, 0.55, 0.7), N = 9)$selected

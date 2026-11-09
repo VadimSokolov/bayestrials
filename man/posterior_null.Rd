@@ -7,7 +7,8 @@
 posterior_null(log_bf, prior_null = 0.5)
 }
 \arguments{
-\item{log_bf}{Log BF10.}
+\item{log_bf}{Log BF10 (any real value, evaluated on the log-odds scale so
+that very large or small Bayes factors do not overflow).}
 
 \item{prior_null}{Prior probability of the null.}
 }

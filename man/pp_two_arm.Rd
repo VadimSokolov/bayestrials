@@ -20,7 +20,7 @@ A probability.
 }
 \description{
 Probability that \verb{Pr(p1 > p0 | all data) > eta} after \code{m1}, \code{m0} further outcomes.
-Posterior superiority is a 600-node Gauss-Legendre integral.
+Posterior superiority is computed with the exact rank-scale integral of \code{\link[=prob_superior]{prob_superior()}}.
 }
 \examples{
 pp_two_arm(8, 20, 5, 20, 10, 10, 0.9)

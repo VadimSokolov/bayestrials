@@ -14,10 +14,10 @@ select_look_table(d_tot, HR, tau = 0.25)
 \item{tau}{prior sd.}
 }
 \value{
-data.frame with \code{events}, \code{z}, \code{obf_bound}, \code{log_bf}, \code{post_prob}.
+data.frame with \code{events}, \code{z} (signed, benefit-positive), \code{obf_bound}, \code{log_bf}, \code{post_prob} (probability of benefit).
 }
 \description{
-Look table at the observed effect
+Benefit-positive convention: \code{theta = -log(HR)}, score \code{S = theta * I}, and the signed statistic \code{z = S / sqrt(I)}, which is positive for benefit (HR below one) and negative for harm.
 }
 \examples{
 select_look_table(952, 0.8)

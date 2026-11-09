@@ -2,7 +2,7 @@
 % Please edit documentation in R/borrow.R
 \name{borrow_ess_robust}
 \alias{borrow_ess_robust}
-\title{Dynamic effective sample size of a robust prior}
+\title{Dynamic effective sample size of a robust prior (mixture-weighted proxy)}
 \usage{
 borrow_ess_robust(yc, nc, yh, nh, w = 0.8)
 }
@@ -17,7 +17,10 @@ borrow_ess_robust(yc, nc, yh, nh, w = 0.8)
 Numeric vector.
 }
 \description{
-Posterior weight on the informative component times its prior ESS (nh + 2).
+Convention: the effective sample size (ESS) of a Beta(a, b) component is \code{a + b}, so the informative component Beta(1 + yh, 1 + nh - yh) has ESS \code{nh + 2} and the vague Beta(1, 1) component has ESS 2. The function returns the posterior-weight-averaged component ESS, \code{w_post * (nh + 2) + (1 - w_post) * 2}, where \code{w_post} is the posterior weight on the informative component after observing \code{yc} of \code{nc} current controls.
+}
+\details{
+This is a simple proxy, not a general mixture ESS: it is not the moment-matching, predictive-consistency (Morita, Thall and Mueller) or expected-local-information-ratio (Neuenschwander et al.) definition. In particular it equals 2 when \code{w = 0} (only the vague component remains) and \code{nh + 2} when \code{w = 1}. An earlier version multiplied the informative weight by \code{nh + 2} alone and so returned 0 at \code{w = 0}.
 }
 \examples{
 borrow_ess_robust(9, 30, 30, 100)

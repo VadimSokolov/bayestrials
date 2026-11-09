@@ -15,10 +15,30 @@ oc_calibrate(sim_null, alpha = 0.025)
 The calibrated threshold \code{c} (a number).
 }
 \description{
-Returns the smallest \code{c} whose type I error (probability that the posterior probability exceeds
-\code{c} at any attended look under the null simulation) is at most \code{alpha}: the \code{1 - alpha}
-quantile ("higher" rule) of \code{\link[=oc_max_pp]{oc_max_pp()}}. Because the rule is \code{pp > c}, the error is
-at most \code{alpha} with equality up to Monte Carlo ties.
+Returns a threshold \code{c} at which the \emph{empirical} type I error in the supplied null simulation
+(the fraction of simulated trials whose posterior probability exceeds \code{c} at any attended
+look) is at most \code{alpha}: the \code{1 - alpha} quantile ("higher" rule) of \code{\link[=oc_max_pp]{oc_max_pp()}}. Because
+the rule is \code{pp > c}, the empirical error is at most \code{alpha}, with equality up to Monte Carlo
+ties.
+}
+\details{
+The guarantee is narrower than it may look.
+\itemize{
+\item It holds for the empirical rejection rate in the one null scenario that was
+simulated (the control rate \code{p0}, the looks, the margin, the prior and any futility rule in
+\code{sim_null}). It is not uniform over nuisance parameters: the same \code{c} can have a different
+type I error at another control rate, and the calibrated \code{c} itself varies with \code{p0}.
+\item It is a Monte Carlo estimate. A different seed or a different \code{nsim} gives a different
+\code{c}, and the true type I error at the returned \code{c} differs from \code{alpha} by Monte Carlo error
+(roughly \code{sqrt(alpha * (1 - alpha) / nsim)} for the empirical rate, plus the sampling
+variability of the quantile itself).
+\item The quantile convention can be one simulated trial more conservative than the
+smallest admissible cutoff, and \code{c} is a simulated value of the maximum posterior
+probability, so the empirical error is typically slightly below \code{alpha}.
+}
+Validate the returned \code{c} on fresh null simulations (new seeds, larger \code{nsim}) and on a
+prespecified grid of control rates (and, if relevant, other nuisance scenarios), for example
+with \code{\link[=oc_summarize]{oc_summarize()}}, and report the worst case or recalibrate on the least favourable rate.
 }
 \examples{
 oc_calibrate(oc_simulate(0.3, 0.3, c(50, 100), nsim = 2000, seed = 1))

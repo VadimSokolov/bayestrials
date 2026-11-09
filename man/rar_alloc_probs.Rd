@@ -42,6 +42,18 @@ A reps x K matrix of allocation probabilities.
 \description{
 Batch Thompson sampling with optional burn-in, allocation floor and fixed control share.
 }
+\details{
+The "ts" rule allocates each arm with its posterior probability of being the best arm
+(Beta(1, 1) priors, \code{M} posterior draws). The "capped" rule uses equal allocation until
+\code{burn * N} patients are enrolled and Thompson probabilities afterwards, projected so that every
+arm receives at least \code{floor} (two arms) or \code{floor / K} (more than two arms) while the
+probabilities still sum to one: arms below the bound are set to it and the others are rescaled
+proportionally, repeated until no arm is below the bound. For two arms the allocation therefore
+lies in \verb{[floor, 1 - floor]}. With \code{fixed_ctrl = TRUE} the control receives exactly \code{1 / K} and the
+remaining \code{1 - 1 / K} is divided among the experimental arms in proportion to their posterior
+probabilities of being best among the experimental arms (control excluded), with each
+experimental arm receiving at least \code{floor / K}.
+}
 \examples{
 rar_alloc_probs("ts", matrix(c(3, 6), 1), matrix(c(7, 4), 1), 20, 100, 2)
 }

@@ -11,29 +11,42 @@ select_simulate(
   tau = 0.25,
   alpha = 0.025,
   seed = NULL,
-  batch = 4000
+  batch = 4000,
+  design_events = min(1225L, d_tot),
+  interim_fraction = 2/3
 )
 }
 \arguments{
-\item{d_tot}{total events.}
+\item{d_tot}{total events (maximum for the four-look, e-value and Bayes rules).}
 
-\item{HR}{true hazard ratio for the power calculation.}
+\item{HR}{true hazard ratio for the power calculation (benefit when below one).}
 
 \item{nsim}{number of simulated trials (per hypothesis).}
 
-\item{tau}{prior sd for log HR.}
+\item{tau}{prior sd for the benefit-positive log hazard ratio \verb{-log HR}.}
 
 \item{alpha}{one-sided level.}
 
 \item{seed}{optional seed.}
 
 \item{batch}{trials per batch.}
+
+\item{design_events}{planned events of SELECT's actual design (default \code{min(1225, d_tot)}).}
+
+\item{interim_fraction}{information fraction of the actual design's interim (default 2/3).}
 }
 \value{
-list with \code{naive_typeI}, \code{pstar}, \code{bayes_typeI}, \code{ev_typeI}, \code{gs_typeI}, \code{dg} (event grid) and \code{rows}, a data.frame with \code{rule}, \code{median_events}, \code{mean_events}, \code{power}.
+list with \code{naive_typeI}, \code{pstar}, \code{bayes_typeI}, \code{ev_typeI}, \code{gs_typeI}, \code{actual_typeI}, \code{gs_bounds}, \code{actual_bounds}, \code{dg} (event grid), \code{max_events} (maximum event count per rule) and \code{rows}, a data.frame with \code{rule}, \code{median_events_success}, \code{mean_events_success}, \code{median_events_all}, \code{mean_events_all}, \code{power}, \code{prob_cross}.
 }
 \description{
-Simulates Gaussian score paths at one-event steps of two, calibrates the posterior bar p* to type I error \code{alpha}, and compares O'Brien-Fleming (four looks), an e-value mixture and the Bayes rule. Paths are processed in batches to bound memory.
+Simulates Gaussian score paths on a grid of event counts (steps of two, plus the interim, planned and total event counts), calibrates the posterior bar p* to type I error \code{alpha}, and compares four rules: a hypothetical O'Brien-Fleming design with four equally spaced looks, an e-value mixture, the Bayes rule, and SELECT's actual design. The effect is benefit-positive, \code{theta = -log(HR)}. Paths are processed in batches to bound memory.
+}
+\details{
+The actual SELECT design (Lincoff et al. 2023) is one superiority interim at two thirds of the planned events followed by the final analysis at the planned events, with O'Brien-Fleming-type boundaries at one-sided level \code{alpha}, \code{gs_boundary(2, alpha, t = c(interim_events / design_events, 1))}. The two other group sequential and the continuous rules run to \code{d_tot} events if they do not cross; the actual design ends at \code{design_events} if it does not cross.
+
+Both group sequential comparators use boundaries \verb{gs_boundary(K, alpha, t = actual information fractions)}, so they respect \code{alpha} and the event rounding.
+
+Event summaries. For each rule, \code{median_events_success} and \code{mean_events_success} are conditional on crossing (among trials that cross the boundary at some look; these are discovery times, not trial sizes). \code{median_events_all} and \code{mean_events_all} are unconditional: trials that never cross are assigned the maximum event count of the rule (\code{d_tot}, or \code{design_events} for the actual design), so they are the median and expected number of events at which the trial ends. \code{power} is the probability of crossing under \code{HR}; \code{prob_cross} is the same number under an explicit name.
 }
 \examples{
 select_simulate(200, 0.8, nsim = 200, seed = 1)$pstar

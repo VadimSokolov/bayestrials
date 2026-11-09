@@ -4,19 +4,30 @@
 \alias{crossing_n}
 \title{Information ratio at which the Bayes bar equals the fixed-level bar}
 \usage{
-crossing_n(alpha = 0.025, c = 1)
+crossing_n(alpha = 0.025, c = 1, all = FALSE)
 }
 \arguments{
-\item{alpha}{One-sided level.}
+\item{alpha}{One-sided level, in (0, 1).}
 
-\item{c}{Bayes factor threshold.}
+\item{c}{Bayes factor threshold (positive).}
+
+\item{all}{If \code{TRUE}, return all roots in increasing order (possibly
+\code{numeric(0)}) instead of the upper one.}
 }
 \value{
-The value k, or NA if there is no crossing in (1e-3, 1e6).
+The upper crossover \code{k}, or \code{NA} if there is no crossing in
+(1e-8, 1e12) (\code{all = FALSE}); a numeric vector of roots (\code{all = TRUE}).
 }
 \description{
-Information ratio at which the Bayes bar equals the fixed-level bar
+Solves \eqn{(1+k)/k\,(\log(1+k) + 2\log c) = z_\alpha^2} for the
+information ratio \code{k}. For \code{c = 1} (and \code{c < 1}) the Bayes bar increases
+through the fixed bar once (the Lindley regime), so there is one root. For
+\code{c > 1} the bar is large at small \code{k}, dips, and rises again: there can be
+two roots, or none if the dip stays above the fixed bar. The scalar value is
+the \strong{upper} crossover, the \code{k} beyond which the Bayes bar stays above the
+fixed bar; \code{all = TRUE} returns every root.
 }
 \examples{
 crossing_n()
+crossing_n(0.025, 2, all = TRUE)   # two crossings: 1.489 and 5.378
 }

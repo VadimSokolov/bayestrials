@@ -7,7 +7,8 @@
 min_bf(x, type = c("pvalue", "gaussian"))
 }
 \arguments{
-\item{x}{A p-value (\code{type = "pvalue"}) or a z statistic (\code{type = "gaussian"}).}
+\item{x}{A p-value between 0 and 1 (\code{type = "pvalue"}) or a z statistic
+(\code{type = "gaussian"}).}
 
 \item{type}{Which bound.}
 }
@@ -15,9 +16,12 @@ min_bf(x, type = c("pvalue", "gaussian"))
 Lower bound on BF01.
 }
 \description{
-\code{type = "pvalue"}: Sellke-Bayarri-Berger bound \verb{-e p log p} over symmetric
-unimodal alternatives (valid for p < 1/e). \code{type = "gaussian"}: bound
-\code{exp(-z^2/2)} over all point alternatives, with \code{x} a z statistic.
+\code{type = "pvalue"}: Sellke-Bayarri-Berger bound \eqn{-e\,p\log p} over
+symmetric unimodal alternatives for \eqn{p < 1/e}, extended by the value 1
+for \eqn{p \ge 1/e} (where no evidence against the null is possible under
+the calibration); the limit 0 is returned at \eqn{p = 0}.
+\code{type = "gaussian"}: bound \code{exp(-z^2/2)} over all point alternatives, with
+\code{x} a z statistic.
 }
 \examples{
 min_bf(0.01)

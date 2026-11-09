@@ -7,32 +7,39 @@
 #' Posterior probability table for a two-arm binary trial
 #'
 #' Returns the matrix `T[x0 + 1, x1 + 1] = Pr(p1 - p0 > a | x0, x1)` for `x0`, `x1` successes
-#' out of `n` per arm with independent Beta(`prior`) priors on each arm. The integral over
-#' `p0` is evaluated on a midpoint grid of `G` points (the same grid as the book's Python code),
-#' once per look, so that a simulated trial reads its posterior probability by table lookup.
-#' Tables are cached within the session.
+#' out of `n` per arm with independent Beta(`prior`) priors on each arm. Each entry is the exact
+#' rank-scale integral of [prob_superior()] (relative tolerance 1e-10), so exchangeable states
+#' give exactly 0.5 and concentrated or U-shaped posteriors are not truncated. When `a = 0`
+#' the table is exchangeable and only half of it is integrated. It is computed once per look, so
+#' that a simulated trial reads its posterior probability by table lookup. Tables are cached
+#' within the session under a key that records `n`, `a` and `prior` exactly (to full double
+#' precision), so distinct arguments never share a table.
+#'
+#' Cost grows like `n^2` integrals (about 0.6 ms each; a table for `n = 160` takes about 5 s
+#' with `a = 0` and 15 s otherwise). On Unix, `options(bayestrials.cores = 4)` computes the rows
+#' of a table in parallel with forked workers.
 #'
 #' @param n Patients per arm at the look.
 #' @param a Superiority margin (default 0).
 #' @param prior Beta prior `c(shape1, shape2)` used on both arms.
-#' @param G Number of grid points.
+#' @param G Deprecated and ignored (earlier versions used a midpoint grid of `G` points).
 #' @return Numeric matrix of dimension `(n + 1) x (n + 1)`, rows indexed by control
 #'   successes and columns by treatment successes (offset by one).
 #' @export
 #' @examples
-#' oc_post_table(10, G = 200)[6, 9]
-oc_post_table <- function(n, a = 0, prior = c(1, 1), G = 3000) {
-  key <- paste(n, round(a, 6), prior[1], prior[2], G, sep = "|")
+#' oc_post_table(10)[6, 9]
+oc_post_table <- function(n, a = 0, prior = c(1, 1), G = NULL) {
+  if (length(n) != 1L || !is.numeric(n) || !is.finite(n) || n < 0 || n != round(n))
+    stop("`n` must be a single nonnegative whole number")
+  if (length(prior) != 2L || !is.numeric(prior) || any(!is.finite(prior)) || any(prior <= 0))
+    stop("`prior` must be two positive, finite Beta shapes")
+  if (length(a) != 1L || !is.numeric(a) || !is.finite(a)) stop("`a` must be a single finite number")
+  key <- paste(sprintf("%.17g", c(n, a, prior)), collapse = "|")
   if (!is.null(hit <- .oc_cache[[key]])) return(hit)
-  u <- (seq_len(G) - 0.5) / G
   x <- 0:n
   A <- prior[1] + x; B <- prior[2] + n - x
-  f0 <- matrix(stats::dbeta(rep(u, each = n + 1), rep(A, times = G), rep(B, times = G)), n + 1, G)
-  f0 <- f0 / rowSums(f0)
-  ua <- pmin(pmax(u + a, 0), 1)
-  sf1 <- matrix(stats::pbeta(rep(ua, each = n + 1), rep(A, times = G), rep(B, times = G),
-                             lower.tail = FALSE), n + 1, G)
-  Tab <- f0 %*% t(sf1)
+  # .pr_superior_grid(): rows treatment states x1, columns control states x0
+  Tab <- t(.pr_superior_grid(A, B, A, B, a, cache = FALSE))
   assign(key, Tab, envir = .oc_cache)
   Tab
 }
@@ -52,7 +59,7 @@ oc_post_table <- function(n, a = 0, prior = c(1, 1), G = 3000) {
 #' @param nsim Number of simulated trials.
 #' @param seed Optional seed.
 #' @param fut Optional futility threshold on the posterior probability (binding).
-#' @param method `"table"` (default, grid-exact posterior table per look) or `"normal"`
+#' @param method `"table"` (default, exact posterior table per look, see [oc_post_table()]) or `"normal"`
 #'   (uses `prob_superior(method = "normal")`; no tables, for large `looks`).
 #' @return List with `pp` (nsim x K matrix, `NA` after a futility stop), `x0`, `x1`
 #'   (cumulative counts), `alive` (logical matrix, trial reaches look k), `looks`, `p0`, `p1`,
@@ -177,10 +184,29 @@ oc_max_pp <- function(sim) {
 
 #' Calibrate the success threshold c to a one-sided type I error
 #'
-#' Returns the smallest `c` whose type I error (probability that the posterior probability exceeds
-#' `c` at any attended look under the null simulation) is at most `alpha`: the `1 - alpha`
-#' quantile ("higher" rule) of [oc_max_pp()]. Because the rule is `pp > c`, the error is
-#' at most `alpha` with equality up to Monte Carlo ties.
+#' Returns a threshold `c` at which the *empirical* type I error in the supplied null simulation
+#' (the fraction of simulated trials whose posterior probability exceeds `c` at any attended
+#' look) is at most `alpha`: the `1 - alpha` quantile ("higher" rule) of [oc_max_pp()]. Because
+#' the rule is `pp > c`, the empirical error is at most `alpha`, with equality up to Monte Carlo
+#' ties.
+#'
+#' The guarantee is narrower than it may look.
+#' \itemize{
+#'   \item It holds for the empirical rejection rate in the one null scenario that was
+#'   simulated (the control rate `p0`, the looks, the margin, the prior and any futility rule in
+#'   `sim_null`). It is not uniform over nuisance parameters: the same `c` can have a different
+#'   type I error at another control rate, and the calibrated `c` itself varies with `p0`.
+#'   \item It is a Monte Carlo estimate. A different seed or a different `nsim` gives a different
+#'   `c`, and the true type I error at the returned `c` differs from `alpha` by Monte Carlo error
+#'   (roughly `sqrt(alpha * (1 - alpha) / nsim)` for the empirical rate, plus the sampling
+#'   variability of the quantile itself).
+#'   \item The quantile convention can be one simulated trial more conservative than the
+#'   smallest admissible cutoff, and `c` is a simulated value of the maximum posterior
+#'   probability, so the empirical error is typically slightly below `alpha`.
+#' }
+#' Validate the returned `c` on fresh null simulations (new seeds, larger `nsim`) and on a
+#' prespecified grid of control rates (and, if relevant, other nuisance scenarios), for example
+#' with [oc_summarize()], and report the worst case or recalibrate on the least favourable rate.
 #'
 #' @param sim_null Output of [oc_simulate()] with `p1 = p0` (the null).
 #' @param alpha One-sided type I error (default 0.025).

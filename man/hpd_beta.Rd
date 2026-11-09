@@ -7,9 +7,10 @@
 hpd_beta(a, b, level = 0.95, grid = 20001)
 }
 \arguments{
-\item{a, b}{Beta shape parameters (both greater than 1).}
+\item{a, b}{Beta shape parameters (both greater than 1; a warning is
+issued otherwise, since the density is not unimodal).}
 
-\item{level}{Coverage of the interval.}
+\item{level}{Coverage of the interval, strictly between 0 and 1.}
 
 \item{grid}{Number of grid points for the lower tail probability.}
 }

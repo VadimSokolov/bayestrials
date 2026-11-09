@@ -16,7 +16,8 @@ A list with posterior \code{weights}, \code{means}, \code{sds} and \code{p_pos},
 the posterior probability that theta > 0.
 }
 \description{
-Posterior for a mixture of normal priors
+The posterior weights are computed on the log scale, so they remain valid when the marginal
+densities of the estimate underflow.
 }
 \examples{
 mixture_posterior(0.2, 0.1, data.frame(weight = c(.5, .5), mean = c(0, .3), sd = c(.5, .2)))

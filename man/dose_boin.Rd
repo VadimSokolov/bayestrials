@@ -19,7 +19,22 @@ dose_boin(p, N = 30, cohort = 3, target = 0.25)
 List with \code{selected}, \code{n}, \code{y} as in \code{\link[=dose_three_plus_three]{dose_three_plus_three()}}.
 }
 \description{
-One simulated BOIN trial
+Dosing follows the BOIN interval rule: with the observed DLT rate \code{y/n} at the current dose, escalate
+when it is at most the escalation boundary, de-escalate when it is at least the de-escalation boundary
+(see \code{\link[=dose_boin_bounds]{dose_boin_bounds()}}) and otherwise stay; escalation never goes to or beyond an eliminated dose.
+A dose and all higher doses are eliminated once \code{n >= 3} and \code{P(p > target | data) > 0.95} under a
+Beta(1, 1) prior (elimination is permanent during the trial); if dose 1 is eliminated the trial stops
+with \code{selected = 0}. There is no early stop for large \code{n} at a dose and no safety cap other than
+elimination. Patients beyond \code{cohort * (N \%/\% cohort)} are not enrolled.
+}
+\details{
+Final selection reproduces the reference \code{select.mtd} of the BOIN package: the elimination rule is
+re-evaluated on the final data, and isotonic regression with inverse posterior-variance weights
+(not patient counts) is applied to \code{(y + 0.05) / (n + 0.1)} over the tried, non-eliminated doses. The
+dose with fitted rate closest to the target is selected. Ties are broken as in the reference: the
+highest dose among tied fitted rates below the target and the lowest dose among tied fitted rates
+above it. (Earlier versions of this function used patient-count weights and always picked the lowest
+tied dose.)
 }
 \examples{
 set.seed(1); dose_boin(c(0.05, 0.1, 0.25, 0.4, 0.55, 0.7), N = 9)$selected

@@ -5,15 +5,15 @@
 \alias{select_design}
 \title{SELECT design constants}
 \format{
-A list with \code{alpha}, \code{tau}, \code{d_tot}, \code{HR}, \code{fractions}, \code{obf_bounds}, \code{info_per_event}, \code{T_en}, \code{T_end}, \code{rewind_d_tot}, \code{rewind_HR}.
+A list with \code{alpha}, \code{tau}, \code{d_tot}, \code{HR}, \code{fractions}, \code{obf_bounds}, \code{info_per_event}, \code{T_en}, \code{T_end}, \code{rewind_d_tot}, \code{rewind_HR}, and the actual-design fields \code{design_HR}, \code{design_power}, \code{design_alpha}, \code{design_events}, \code{design_interim_fraction}, \code{design_interim_events}, \code{design_obf_bounds} (two-look bounds at information fractions 817/1225 and 1), \code{observed_HR}, \code{observed_events}.
 }
 \source{
-SELECT: Lincoff et al. (2023), NEJM 389, 2221-2232 (semaglutide, HR 0.80); REWIND: Gerstein et al. (2019), Lancet 394, 121-130 (HR 0.88, 1257 events); bounds from Polson and Sokolov's calibration code.
+SELECT: Lincoff et al. (2023), NEJM 389, 2221-2232 (semaglutide, observed HR 0.80); REWIND: Gerstein et al. (2019), Lancet 394, 121-130 (HR 0.88, 1257 events); bounds from Polson and Sokolov's calibration code.
 }
 \usage{
 select_design
 }
 \description{
-Constants of the SELECT reconstruction in the cases chapter: 1270 first-event totals, hazard ratio 0.80, prior sd 0.25 for log HR, four equally spaced looks with one-sided 0.025 O'Brien-Fleming bounds on the Z scale, information 1/4 per event, linear enrolment over 36 months in a 60 month trial.
+Constants of the SELECT case study in the cases chapter, benefit-positive convention \code{theta = -log(HR)}. Two groups of fields. (1) The book's hypothetical reconstruction, run at the observed data: 1270 first-event totals, hazard ratio 0.80, prior sd 0.25 for \verb{-log HR}, four equally spaced looks with one-sided 0.025 O'Brien-Fleming bounds on the Z scale, information 1/4 per event, linear enrolment over 36 months in a 60 month trial. (2) SELECT's actual design: hazard ratio 0.83 with 90\% power at one-sided 0.025 and 1,225 planned events, one superiority interim at two thirds of the planned events (817) with O'Brien-Fleming-type bounds, then the final analysis; observed hazard ratio 0.80 and 1,270 events.
 }
 \keyword{datasets}

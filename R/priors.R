@@ -12,6 +12,9 @@ ess_events <- function(s0) 4 / s0^2
 
 #' Posterior for a mixture of normal priors
 #'
+#' The posterior weights are computed on the log scale, so they remain valid when the marginal
+#' densities of the estimate underflow.
+#'
 #' @param est,se Estimate and standard error.
 #' @param comps A data.frame (or list) with columns `weight`, `mean`, `sd`.
 #' @return A list with posterior `weights`, `means`, `sds` and `p_pos`,
@@ -21,7 +24,9 @@ ess_events <- function(s0) 4 / s0^2
 #' @export
 mixture_posterior <- function(est, se, comps) {
   comps <- as.data.frame(comps)
-  w <- comps$weight * stats::dnorm(est, comps$mean, sqrt(comps$sd^2 + se^2))
+  # log-sum-exp normalization: marginal densities may underflow on the raw scale
+  lw <- log(comps$weight) + stats::dnorm(est, comps$mean, sqrt(comps$sd^2 + se^2), log = TRUE)
+  w <- exp(lw - max(lw))
   w <- w / sum(w)
   up <- normal_update(comps$mean, comps$sd, est, se)
   list(weights = w, means = up$mean, sds = up$sd,

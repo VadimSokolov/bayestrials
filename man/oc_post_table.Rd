@@ -4,7 +4,7 @@
 \alias{oc_post_table}
 \title{Posterior probability table for a two-arm binary trial}
 \usage{
-oc_post_table(n, a = 0, prior = c(1, 1), G = 3000)
+oc_post_table(n, a = 0, prior = c(1, 1), G = NULL)
 }
 \arguments{
 \item{n}{Patients per arm at the look.}
@@ -13,7 +13,7 @@ oc_post_table(n, a = 0, prior = c(1, 1), G = 3000)
 
 \item{prior}{Beta prior \code{c(shape1, shape2)} used on both arms.}
 
-\item{G}{Number of grid points.}
+\item{G}{Deprecated and ignored (earlier versions used a midpoint grid of \code{G} points).}
 }
 \value{
 Numeric matrix of dimension \verb{(n + 1) x (n + 1)}, rows indexed by control
@@ -21,11 +21,19 @@ successes and columns by treatment successes (offset by one).
 }
 \description{
 Returns the matrix \code{T[x0 + 1, x1 + 1] = Pr(p1 - p0 > a | x0, x1)} for \code{x0}, \code{x1} successes
-out of \code{n} per arm with independent Beta(\code{prior}) priors on each arm. The integral over
-\code{p0} is evaluated on a midpoint grid of \code{G} points (the same grid as the book's Python code),
-once per look, so that a simulated trial reads its posterior probability by table lookup.
-Tables are cached within the session.
+out of \code{n} per arm with independent Beta(\code{prior}) priors on each arm. Each entry is the exact
+rank-scale integral of \code{\link[=prob_superior]{prob_superior()}} (relative tolerance 1e-10), so exchangeable states
+give exactly 0.5 and concentrated or U-shaped posteriors are not truncated. When \code{a = 0}
+the table is exchangeable and only half of it is integrated. It is computed once per look, so
+that a simulated trial reads its posterior probability by table lookup. Tables are cached
+within the session under a key that records \code{n}, \code{a} and \code{prior} exactly (to full double
+precision), so distinct arguments never share a table.
+}
+\details{
+Cost grows like \code{n^2} integrals (about 0.6 ms each; a table for \code{n = 160} takes about 5 s
+with \code{a = 0} and 15 s otherwise). On Unix, \code{options(bayestrials.cores = 4)} computes the rows
+of a table in parallel with forked workers.
 }
 \examples{
-oc_post_table(10, G = 200)[6, 9]
+oc_post_table(10)[6, 9]
 }

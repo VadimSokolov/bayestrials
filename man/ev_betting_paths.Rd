@@ -9,7 +9,8 @@ ev_betting_paths(pT, pC, lam, npairs, reps, seed = NULL)
 \arguments{
 \item{pT, pC}{Response rates in treatment and control.}
 
-\item{lam}{Betting fraction.}
+\item{lam}{Betting fraction in \verb{[-1, 1]}: each increment is -1, 0 or 1, so
+\code{1 + lam * D >= 0} (nonnegative wealth) exactly when \code{abs(lam) <= 1}.}
 
 \item{npairs}{Number of pairs.}
 

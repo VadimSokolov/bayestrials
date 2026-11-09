@@ -13,7 +13,17 @@ dose_three_plus_three(p)
 List with \code{selected} (recommended dose, 1-based, 0 if none), \code{n} and \code{y} (patients and DLTs per dose).
 }
 \description{
-One simulated 3+3 trial
+The rule implemented, step by step. Treat a cohort of 3 at dose 1. At the current dose: with 0 DLTs
+in 3, escalate; with 1 DLT in 3, treat 3 more at the same dose, escalate if the total is 1 DLT in 6
+and otherwise stop; with 2 or 3 DLTs in the first 3, stop immediately (no expansion cohort). Escalation
+moves up exactly one dose, and a dose is never revisited: there is no de-escalation to a lower dose
+for further testing, no expansion of the dose below the stopping dose, and no confirmation of the
+selected dose. When the trial stops for excess toxicity at dose \code{d} the recommended dose is \code{d - 1}
+(0, "none", if \code{d = 1}), which may have been given to only 3 patients. If the top dose passes (0 DLTs
+in 3, or 1 DLT in 6 after expansion) the top dose is selected, with no expansion cohort after 0 DLTs
+in 3. There is no sample size cap, so the trial length is random. This is the traditional "3+3" of the usual
+textbook form; Storer's (1989) designs, which expand and de-escalate after initial toxicity, are
+different rules.
 }
 \examples{
 set.seed(1); dose_three_plus_three(c(0.05, 0.1, 0.25, 0.4))$selected

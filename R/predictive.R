@@ -3,33 +3,37 @@
 
 .pp_cache <- new.env(parent = emptyenv())
 
-# Gauss-Legendre nodes and weights on [0, 1] (Golub-Welsch), cached.
-.gl_grid <- function(K = 600) {
-  key <- as.character(K)
-  if (!is.null(hit <- .pp_cache[[key]])) return(hit)
-  i <- seq_len(K - 1)
-  b <- i / sqrt(4 * i^2 - 1)
-  J <- matrix(0, K, K)
-  J[cbind(i, i + 1)] <- b
-  J[cbind(i + 1, i)] <- b
-  e <- eigen(J, symmetric = TRUE)
-  o <- order(e$values)
-  x <- e$values[o]
-  w <- 2 * e$vectors[1, o]^2
-  out <- list(p = 0.5 * (x + 1), w = 0.5 * w)
-  assign(key, out, envir = .pp_cache)
+# Pr(p1 > p0 + m) on the full grid of states, by the rank-scale integral of
+# prob_superior(method = "exact"): rows index treatment Beta(A1, B1), columns control
+# Beta(A0, B0). When both arms share the same states and shapes and m = 0 (exchangeable),
+# only the lower triangle is integrated and the rest follows from Pr(p1 > p0) = 1 - Pr(p0 > p1)
+# (the diagonal is exactly 1/2). Rows are computed in parallel (forked workers, Unix only) when
+# `options(bayestrials.cores = k)` with k > 1; the default is serial. Results are cached for the
+# session (`cache = FALSE` skips it).
+.pr_superior_grid <- function(A1, B1, A0, B0, m = 0, cache = TRUE) {
+  key <- paste(sprintf("%.17g", c(length(A1), A1, B1, A0, B0, m)), collapse = "|")
+  if (cache && !is.null(hit <- .pp_cache[[key]])) return(hit)
+  n1 <- length(A1); n0 <- length(A0)
+  out <- matrix(0, n1, n0)
+  sym <- m == 0 && n1 == n0 && identical(as.numeric(A1), as.numeric(A0)) &&
+    identical(as.numeric(B1), as.numeric(B0))
+  row <- function(i) {
+    r <- numeric(n0)
+    jj <- if (sym) seq_len(i - 1L) else seq_len(n0)
+    for (j in jj) r[j] <- prob_superior_exact(A1[i], B1[i], A0[j], B0[j], m)
+    r
+  }
+  cores <- getOption("bayestrials.cores", 1L)
+  rows <- if (cores > 1L && .Platform$OS.type == "unix" && n1 > 20L) {
+    parallel::mclapply(seq_len(n1), row, mc.cores = cores)
+  } else lapply(seq_len(n1), row)
+  for (i in seq_len(n1)) out[i, ] <- rows[[i]]
+  if (sym) {
+    out[upper.tri(out)] <- 1 - t(out)[upper.tri(out)]
+    diag(out) <- 0.5
+  }
+  if (cache) assign(key, out, envir = .pp_cache)
   out
-}
-
-# Pr(p1 > p0) on the full grid of states: rows index treatment Beta(A1, B1), columns control
-# Beta(A0, B0).
-.pr_superior_grid <- function(A1, B1, A0, B0, K = 600) {
-  g <- .gl_grid(K)
-  f0 <- matrix(stats::dbeta(rep(g$p, each = length(A0)), rep(A0, times = K), rep(B0, times = K)),
-               length(A0), K)
-  s1 <- matrix(stats::pbeta(rep(g$p, each = length(A1)), rep(A1, times = K), rep(B1, times = K),
-                            lower.tail = FALSE), length(A1), K)
-  s1 %*% t(sweep(f0, 2, g$w, `*`))
 }
 
 #' Conditional power on the normal (B-value) scale
@@ -173,7 +177,7 @@ lee_liu_oc <- function(N, p, table, p0, eta, a = 1, b = 1) {
 #' Exact predictive probability, two arms
 #'
 #' Probability that `Pr(p1 > p0 | all data) > eta` after `m1`, `m0` further outcomes.
-#' Posterior superiority is a 600-node Gauss-Legendre integral.
+#' Posterior superiority is computed with the exact rank-scale integral of [prob_superior()].
 #'
 #' @param s1,n1,s0,n0 Responses and patients on treatment and control so far.
 #' @param m1,m0 Further patients on each arm.

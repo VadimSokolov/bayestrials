@@ -49,3 +49,30 @@ test_that("MAP prior does not truncate heterogeneity", {
   expect_equal(h$tau_max, 2)
   expect_lt(h$tail_mass, 1e-6)
 })
+
+test_that("M3: borrow_prob_superior is exact for concentrated posteriors", {
+  expect_equal(borrow_prob_superior(0, 1000, data.frame(w = 1, a = 1, b = 1001)), 0.5,
+               tolerance = 1e-9)
+  expect_equal(borrow_prob_superior(c(0, 500), 1000, data.frame(w = c(.3, .7), a = c(1, 1), b = c(1001, 1001)))[1], 0.5,
+               tolerance = 1e-9)
+  cp <- data.frame(w = c(.25, .75), a = c(10, 3), b = c(22, 9))
+  yt <- c(5, 20, 41)
+  ref <- vapply(yt, function(y) 0.25 * prob_superior(1 + y, 61 - y, 10, 22) +
+                               0.75 * prob_superior(1 + y, 61 - y, 3, 9), numeric(1))
+  expect_equal(borrow_prob_superior(yt, 60, cp), ref, tolerance = 1e-10)
+  # weights are normalized
+  expect_equal(borrow_prob_superior(yt, 60, transform(cp, w = 10 * w)), ref, tolerance = 1e-10)
+})
+
+test_that("M4: borrow_basket_posterior is finite for extreme data", {
+  r <- borrow_basket_posterior(c(1000, 1000), c(2000, 2000))
+  expect_true(all(is.finite(r$means)))
+  expect_true(is.finite(r$tau_mean))
+  expect_true(all(r$means > 0 & r$means < 1))
+  r2 <- borrow_basket_posterior(c(0, 2000), c(2000, 2000))
+  expect_true(all(is.finite(r2$means)))
+  expect_lt(r2$means[1], r2$means[2])
+  # unchanged for moderate data: symmetric baskets give equal means
+  r3 <- borrow_basket_posterior(c(12, 12), c(30, 30), nq = 21)
+  expect_equal(r3$means[1], r3$means[2], tolerance = 1e-12)
+})

@@ -15,13 +15,13 @@ prob_superior(
 )
 }
 \arguments{
-\item{a1, b1}{Beta parameters of the treatment arm.}
+\item{a1, b1}{Beta parameters of the treatment arm (positive, finite).}
 
 \item{a0, b0}{Beta parameters of the control arm.}
 
 \item{margin}{Margin \code{m} (default 0).}
 
-\item{method}{\code{"exact"} (numerical integration), \code{"normal"} (normal
+\item{method}{\code{"exact"} (numerical integration as above), \code{"normal"} (normal
 approximation to the difference, fast, used in large simulations) or
 \code{"mc"} (Monte Carlo).}
 
@@ -33,4 +33,20 @@ Numeric vector of probabilities.
 \description{
 Computes \eqn{\Pr(p_1 > p_0 + m)} for independent \eqn{p_1 \sim Beta(a_1, b_1)}
 and \eqn{p_0 \sim Beta(a_0, b_0)}. Vectorized over all arguments.
+}
+\details{
+The \code{"exact"} method integrates over the quantile (rank) scale of the
+\emph{narrower} of the two distributions, \eqn{\int_0^1 G(Q(u))\,du}, where \code{Q}
+is its Beta quantile function and \code{G} the other arm's Beta (survival)
+function at the shifted point. On this scale the integrand is bounded,
+monotone and smooth for any shapes, including U-shaped, concentrated and
+endpoint-heavy Betas, whereas a fixed grid or an adaptive integral in the
+probability scale can miss a concentrated peak or endpoint mass. The
+integration is adaptive with relative tolerance 1e-10; where the
+integrand has a kink (for example a margin that clips at 0 or 1) it is split
+there.
+}
+\examples{
+prob_superior(5, 7, 5, 7)            # exchangeable: exactly 0.5
+prob_superior(0.01, 0.01, 0.01, 0.01) # U-shaped: still 0.5
 }

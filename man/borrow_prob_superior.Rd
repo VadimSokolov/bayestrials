@@ -17,8 +17,10 @@ borrow_prob_superior(yt, nt, comps_post)
 Numeric vector of \eqn{\Pr(p_t > p_c \mid data)}.
 }
 \description{
-Treatment prior is Beta(1, 1). Control posterior is a beta mixture. Computed by
-trapezoid integration on a 2000 point grid. Vectorized over \code{yt}.
+Treatment prior is Beta(1, 1). The control posterior is a beta mixture, so
+\eqn{\Pr(p_t > p_c \mid data) = \sum_i w_i \Pr(p_t > p_{c,i})}, where each term is the
+exact rank-scale integral of \code{\link[=prob_superior]{prob_superior()}} (relative tolerance 1e-10). The mixture
+weights are normalized to sum to one. Vectorized over \code{yt}.
 }
 \examples{
 borrow_prob_superior(20, 60, data.frame(w = 1, a = 10, b = 22))

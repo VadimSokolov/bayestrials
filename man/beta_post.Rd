@@ -11,10 +11,11 @@ beta_post(x, n, a = 1, b = 1)
 
 \item{n}{Number of patients.}
 
-\item{a, b}{Beta prior parameters (default uniform).}
+\item{a, b}{Beta prior parameters (default uniform), positive and finite.}
 }
 \value{
-A list with posterior parameters \code{a} and \code{b}.
+A list with posterior parameters \code{a} and \code{b}. An error is raised
+unless \code{n} is a nonnegative whole number and \code{x} a whole number in \verb{[0, n]}.
 }
 \description{
 Beta posterior for a binomial outcome

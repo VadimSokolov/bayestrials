@@ -7,12 +7,12 @@
 gs_expected_information(t, bounds, lower = NULL, drift = 0)
 }
 \arguments{
-\item{t}{Information fractions (increasing).}
+\item{t}{Information fractions (strictly increasing, separated by at least 1e-9).}
 
 \item{bounds}{Upper z boundaries, one per look.}
 
 \item{lower}{Lower (futility) z boundaries, or \code{NULL} for none. \code{-Inf}
-entries mean no futility stop at that look.}
+entries mean no futility stop at that look. Must not exceed \code{bounds}.}
 
 \item{drift}{Expected value of the final z statistic (\code{theta * sqrt(I_max)}).}
 }

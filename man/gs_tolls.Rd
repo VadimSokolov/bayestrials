@@ -14,14 +14,28 @@ gs_tolls(info, tau = 0.25, alpha = 0.025)
 \item{alpha}{One-sided level (default 0.025).}
 }
 \value{
-A data.frame with \code{info}, \code{ockham}, \code{fixed_bar}, \code{bayes_bar},
-\code{anytime_bar}, \code{ratio} (anytime over Bayes in squared units) and
-\code{surcharge}.
+A data.frame with \code{info}, \code{ockham}, \code{fixed_bar}, the asymptotic
+\code{bayes_bar} and \code{anytime_bar}, \code{ratio} (asymptotic anytime over Bayes in
+squared units), \code{surcharge} (\eqn{2\log(1/\alpha)}), and the exact
+finite-information \code{bayes_bar_exact}, \code{anytime_bar_exact} and
+\code{ratio_exact} (their squared ratio).
 }
 \description{
-Fixed level bar \eqn{z_\alpha}, Bayes bar \eqn{\sqrt{L_n}} with Ockham
-penalty \eqn{L_n = \log(1 + I_n\tau^2)}, and anytime-valid bar
-\eqn{\sqrt{L_n + 2\log(1/\alpha)}}.
+Fixed level bar \eqn{z_\alpha}, a Bayes bar with Ockham penalty
+\eqn{L_n = \log(1 + q)}, \eqn{q = I_n\tau^2}, and an anytime-valid
+(e-value) bar at threshold \eqn{1/\alpha}. Each of the last two is returned
+in two clearly labelled forms.
+}
+\details{
+The exact finite-information bars come from the normal mixture Bayes factor
+\eqn{BF_{10} \ge b}, that is
+\eqn{z^2 \ge (1 + 1/q)(\log(1+q) + 2\log b)}: \code{bayes_bar_exact} uses
+\eqn{b = 1} and \code{anytime_bar_exact} uses \eqn{b = 1/\alpha} (the e-value
+bar). The asymptotic forms \code{bayes_bar} \eqn{= \sqrt{L_n}} and \code{anytime_bar}
+\eqn{= \sqrt{L_n + 2\log(1/\alpha)}} drop the factor \eqn{1 + 1/q} and
+agree with the exact bars only when \eqn{q} is large; at small \eqn{q} the
+asymptotic Bayes bar is far too low (about 0.25 against 1.02 at
+\code{info = 1}, \code{tau = 0.25}).
 }
 \examples{
 gs_tolls(c(25, 100, 1000), tau = 0.25)

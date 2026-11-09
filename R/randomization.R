@@ -212,7 +212,7 @@ compress_ratio <- function(bits) {
 
 #' Bits from a multiplicative congruential generator
 #'
-#' Iterates x_{k+1} = a x_k mod m from x_1 = `seed` and returns the indicator
+#' Iterates `x[k+1] = a * x[k] mod m` from `x[1] = seed` and returns the indicator
 #' x_k > m/2 rounded down. The default is the 16-bit generator 75 x mod 65537
 #' (the ZX81 generator), a short formula whose bits look random to a compressor.
 #'

@@ -41,10 +41,20 @@ rar_simulate(
 \value{
 Named list: mean responders (\code{resp}), share and number on the best arm, sd of n on best,
 fraction of trials with fewer than N/K on the best arm, rejection rates of the naive and
-period-stratified z tests (best arm, any arm) at one-sided 0.025 Bonferroni, and \code{share_ctrl}.
+period-stratified z tests (best experimental arm, any arm) at one-sided 0.025 Bonferroni, and \code{share_ctrl}.
 }
 \description{
-Simulate a response-adaptive randomized trial with a binary endpoint
+Exactly \code{N} patients are enrolled in batches of \code{batch}; the last batch is smaller when \code{N} is
+not a multiple of \code{batch}. Time for the drift and the enrolment strata is the batch midpoint as a
+fraction of \code{N}.
+}
+\details{
+The \verb{rej_best_*} fields refer to the best experimental arm, the experimental arm with the largest
+true response probability (the lowest-numbered one among ties) compared with control. Under the
+null (or whenever no experimental arm beats control) these are therefore rejection rates of a
+true null hypothesis for the first experimental arm. \code{share_best}, \code{n_inferior}, \code{sd_n_best} and
+\code{frac_more_on_inferior} refer to the arm with the largest true probability over all arms (control
+on ties).
 }
 \examples{
 rar_simulate(c(0.3, 0.45), 100, "ts", reps = 50, seed = 1)$resp

@@ -4,17 +4,19 @@
 \alias{ev_log_mixture}
 \title{Log of the half-normal mixture e-process}
 \usage{
-ev_log_mixture(S, n, rho)
+ev_log_mixture(S, n, rho, sign = 1)
 }
 \arguments{
 \item{S}{Running sum(s).}
 
-\item{n}{Sample size(s).}
+\item{n}{Sample size(s), nonnegative.}
 
-\item{rho}{Mixing standard deviation.}
+\item{rho}{Mixing standard deviation, positive.}
+
+\item{sign}{\code{1} for the one-sided (theta > 0) alternative, \code{-1} for the other side.}
 }
 \value{
-The log e-value(s), numerically stable for large \code{S}.
+The log e-value(s), numerically stable for large \verb{|S|}.
 }
 \description{
 Log of the half-normal mixture e-process

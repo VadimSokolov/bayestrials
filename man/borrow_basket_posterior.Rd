@@ -17,7 +17,7 @@ borrow_basket_posterior(y, n, mu_grid = NULL, tau_grid = NULL, nq = 81)
 List with \code{means} (posterior mean response per basket) and \code{tau_mean}.
 }
 \description{
-Half-normal(1) prior on tau, N(0, 2^2) on mu (logit scale), Gauss-type quadrature over basket effects.
+Half-normal(1) prior on tau, N(0, 2^2) on mu (logit scale), Gauss-type quadrature over basket effects. All likelihoods, quadrature sums and grid weights are computed on the log scale (log-sum-exp), so well-defined posteriors never produce \code{NaN}, even when some grid points have a vanishing integrated likelihood.
 }
 \examples{
 borrow_basket_posterior(c(12, 12, 3), c(30, 30, 30), nq = 21)

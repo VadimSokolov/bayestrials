@@ -75,7 +75,7 @@ posterior_null <- function(log_bf, prior_null = 0.5) {
 #' `type = "gaussian"`: bound `exp(-z^2/2)` over all point alternatives, with
 #' `x` a z statistic.
 #'
-#' @param x A p-value in [0, 1] (`type = "pvalue"`) or a z statistic
+#' @param x A p-value between 0 and 1 (`type = "pvalue"`) or a z statistic
 #'   (`type = "gaussian"`).
 #' @param type Which bound.
 #' @return Lower bound on BF01.

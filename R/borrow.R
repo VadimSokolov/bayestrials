@@ -1,7 +1,5 @@
 # Borrowing historical information: exact operating characteristics for a binary control rate.
 
-.borrow_grid <- seq(0.0005, 0.9995, length.out = 2000)
-
 .trapz <- function(y, x) sum((y[-1] + y[-length(y)]) / 2 * diff(x))
 
 #' Posterior mixture for a control rate after observing current control data
@@ -23,8 +21,10 @@ borrow_post_control <- function(yc, nc, comps) {
 
 #' Posterior probability that treatment beats control under a control mixture
 #'
-#' Treatment prior is Beta(1, 1). Control posterior is a beta mixture. Computed by
-#' trapezoid integration on a 2000 point grid. Vectorized over `yt`.
+#' Treatment prior is Beta(1, 1). The control posterior is a beta mixture, so
+#' \eqn{\Pr(p_t > p_c \mid data) = \sum_i w_i \Pr(p_t > p_{c,i})}, where each term is the
+#' exact rank-scale integral of [prob_superior()] (relative tolerance 1e-10). The mixture
+#' weights are normalized to sum to one. Vectorized over `yt`.
 #'
 #' @param yt Treatment responders (vector).
 #' @param nt Treatment patients.
@@ -34,13 +34,14 @@ borrow_post_control <- function(yc, nc, comps) {
 #' borrow_prob_superior(20, 60, data.frame(w = 1, a = 10, b = 22))
 #' @export
 borrow_prob_superior <- function(yt, nt, comps_post) {
-  g <- .borrow_grid
-  dens <- rep(0, length(g))
-  for (i in seq_len(nrow(comps_post))) {
-    dens <- dens + comps_post$w[i] * dbeta(g, comps_post$a[i], comps_post$b[i])
+  w <- comps_post$w / sum(comps_post$w)
+  out <- numeric(length(yt))
+  for (i in seq_along(w)) {
+    if (w[i] == 0) next
+    out <- out + w[i] * prob_superior(1 + yt, 1 + nt - yt,
+                                      comps_post$a[i], comps_post$b[i], method = "exact")
   }
-  dens <- dens / .trapz(dens, g)
-  vapply(yt, function(y) .trapz(dens * (1 - pbeta(g, 1 + y, 1 + nt - y)), g), numeric(1))
+  out
 }
 
 #' Control priors compared in the borrowing chapter
@@ -148,7 +149,7 @@ borrow_ess_robust <- function(yc, nc, yh, nh, w = 0.8) {
 
 #' Hierarchical logit-normal basket model on a grid
 #'
-#' Half-normal(1) prior on tau, N(0, 2^2) on mu (logit scale), Gauss-type quadrature over basket effects.
+#' Half-normal(1) prior on tau, N(0, 2^2) on mu (logit scale), Gauss-type quadrature over basket effects. All likelihoods, quadrature sums and grid weights are computed on the log scale (log-sum-exp), so well-defined posteriors never produce `NaN`, even when some grid points have a vanishing integrated likelihood.
 #'
 #' @param y,n Responders and patients per basket.
 #' @param mu_grid,tau_grid Grids for the logit mean and between-basket sd.
@@ -162,25 +163,32 @@ borrow_basket_posterior <- function(y, n, mu_grid = NULL, tau_grid = NULL, nq = 
   if (is.null(mu_grid)) mu_grid <- seq(-3, 1.5, length.out = 46)
   if (is.null(tau_grid)) tau_grid <- seq(0.05, 3.0, length.out = 40)
   z <- seq(-6, 6, length.out = nq)
-  wz <- dnorm(z); wz <- wz / sum(wz)
+  lwz <- dnorm(z, log = TRUE); lwz <- lwz - .logsumexp(lwz)
   lp_tau <- log(2) + dnorm(tau_grid, 0, 1, log = TRUE)
   lp_mu <- dnorm(mu_grid, 0, 2, log = TRUE)
   logpost <- matrix(0, length(mu_grid), length(tau_grid))
   ratio <- array(0, c(K, length(mu_grid), length(tau_grid)))
   for (i in seq_along(mu_grid)) {
     for (j in seq_along(tau_grid)) {
-      th <- plogis(mu_grid[i] + tau_grid[j] * z)
-      L <- vapply(th, function(t) dbinom(y, n, t), numeric(K))
-      L <- matrix(L, K, nq)
-      lik <- as.vector(L %*% wz)
-      num <- as.vector((L * rep(th, each = K)) %*% wz)
-      ratio[, i, j] <- num / lik
-      logpost[i, j] <- lp_mu[i] + lp_tau[j] + sum(log(lik))
+      eta <- mu_grid[i] + tau_grid[j] * z
+      lth <- plogis(eta, log.p = TRUE); l1th <- plogis(-eta, log.p = TRUE)
+      # log binomial likelihood up to the constant choose(n, y), which cancels on normalization
+      ll <- outer(y, lth) + outer(n - y, l1th) + rep(lwz, each = K)
+      lik <- apply(ll, 1, .logsumexp)
+      lnum <- apply(ll + rep(lth, each = K), 1, .logsumexp)
+      ratio[, i, j] <- exp(lnum - lik)
+      logpost[i, j] <- lp_mu[i] + lp_tau[j] + sum(lik)
     }
   }
   w <- exp(logpost - max(logpost)); w <- w / sum(w)
   means <- vapply(seq_len(K), function(k) sum(w * ratio[k, , ]), numeric(1))
   list(means = means, tau_mean = sum(colSums(w) * tau_grid))
+}
+
+.logsumexp <- function(x) {
+  m <- max(x)
+  if (!is.finite(m)) return(m)
+  m + log(sum(exp(x - m)))
 }
 
 #' Meta-analytic-predictive prior from historical controls (normal-normal, logit scale)

@@ -64,7 +64,7 @@ dose_three_plus_three <- function(p) {
 #' One simulated one-parameter power-model CRM trial
 #'
 #' Dose-toxicity model `p_d(a) = skeleton_d^exp(a)` with a N(0, 1.34) prior on `a`. The posterior is
-#' computed on a grid of 401 equally spaced values of `a` on [-4, 4] (the prior and posterior are
+#' computed on a grid of 401 equally spaced values of `a` on the interval from -4 to 4 (the prior and posterior are
 #' truncated to this range and renormalised on it). The trial starts at dose 1 and enrols `N %/% cohort`
 #' cohorts of size `cohort` (patients beyond `cohort * (N %/% cohort)` are not enrolled). After each
 #' cohort the posterior is updated and: (i) the trial stops with no dose selected (`selected = 0`) if

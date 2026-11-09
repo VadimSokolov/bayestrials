@@ -4,7 +4,14 @@
 \alias{borrow_map_prior}
 \title{Meta-analytic-predictive prior from historical controls (normal-normal, logit scale)}
 \usage{
-borrow_map_prior(y, n, tau_scale = 0.5, nsamp = 2e+05, seed = NULL)
+borrow_map_prior(
+  y,
+  n,
+  tau_scale = 0.5,
+  nsamp = 2e+05,
+  seed = NULL,
+  tail_tol = 1e-06
+)
 }
 \arguments{
 \item{y, n}{Historical responders and patients.}
@@ -14,12 +21,17 @@ borrow_map_prior(y, n, tau_scale = 0.5, nsamp = 2e+05, seed = NULL)
 \item{nsamp}{Number of predictive samples.}
 
 \item{seed}{Optional seed.}
+
+\item{tail_tol}{Tolerated omitted posterior mass of \code{tau}, relative to the total.}
 }
 \value{
-List with \code{samples} (control rate in a new trial), \code{beta} (moment-matched \code{a}, \code{b}), \code{taus}, \code{pw}.
+List with \code{samples} (control rate in a new trial), \code{beta} (moment-matched \code{a}, \code{b}), \code{taus}, \code{pw} (posterior grid weights of \code{tau}), \code{tau_max} (upper end of the grid) and \code{tail_mass} (estimated posterior mass of \code{tau} beyond it).
 }
 \description{
-Meta-analytic-predictive prior from historical controls (normal-normal, logit scale)
+Model: empirical logits \code{est_i = log((y_i + 0.5) / (n_i - y_i + 0.5))} with known variances \code{se2_i}, \code{est_i ~ N(theta_i, se2_i)}, \code{theta_i ~ N(mu, tau^2)}. The prior on the overall logit mean \code{mu} is flat (improper) and is integrated out analytically, which gives the factor \code{sqrt(v)} in the marginal posterior of \code{tau}; the prior on \code{tau} is half-normal with scale \code{tau_scale}. The posterior of \code{tau} is evaluated on a grid with step about 0.005 starting at 0.001.
+}
+\details{
+The grid is not fixed: its upper end starts at \code{max(2, 4 * tau_scale)} and is doubled until the posterior mass beyond it (evaluated by trapezoid on the next doubling) is below \code{tail_tol} relative to the total, so strongly heterogeneous historical data or a large \code{tau_scale} are not silently truncated. The retained range and omitted mass are returned as \code{tau_max} and \code{tail_mass}.
 }
 \examples{
 borrow_map_prior(c(24, 33, 27, 45), c(80, 100, 70, 150), nsamp = 1000, seed = 1)$beta

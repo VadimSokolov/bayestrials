@@ -20,5 +20,6 @@ A list: \code{cross} (probability of first crossing at each look) and
 \description{
 Probability that a Brownian motion with drift crosses the upper boundaries
 \code{bounds} (z scale) at information fractions \code{t}, computed with the
-(computed by the Armitage, McPherson and Rowe recursion).
+Armitage, McPherson and Rowe recursion (see \code{\link[=gs_crossing_two_sided]{gs_crossing_two_sided()}} for
+the numerical method and its accuracy control).
 }

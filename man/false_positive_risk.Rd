@@ -14,7 +14,10 @@ false_positive_risk(prior, power, alpha = 0.025)
 \item{alpha}{One-sided type I error rate.}
 }
 \value{
-Numeric vector, \eqn{\alpha(1-\pi)/(\alpha(1-\pi) + \beta\pi)}.
+Numeric vector, \eqn{\alpha(1-\pi)/(\alpha(1-\pi) + (1-\beta)\pi)},
+where \eqn{\pi} is \code{prior}, \eqn{\alpha} the type I error and
+\eqn{1-\beta} = \code{power} (the code takes \code{power}, not the type II error
+rate \eqn{\beta}).
 }
 \description{
 Probability that the drug does not work given a significant result.

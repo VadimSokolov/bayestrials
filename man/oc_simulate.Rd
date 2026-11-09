@@ -31,7 +31,7 @@ oc_simulate(
 
 \item{fut}{Optional futility threshold on the posterior probability (binding).}
 
-\item{method}{\code{"table"} (default, grid-exact posterior table per look) or \code{"normal"}
+\item{method}{\code{"table"} (default, exact posterior table per look, see \code{\link[=oc_post_table]{oc_post_table()}}) or \code{"normal"}
 (uses \code{prob_superior(method = "normal")}; no tables, for large \code{looks}).}
 }
 \value{
