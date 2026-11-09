@@ -24,7 +24,8 @@ safety_rofecoxib <- function(rr = c(2.30, 2.24), lo = c(1.22, 1.24), hi = c(4.33
   out <- list()
   for (i in seq_along(rr)) {
     th <- log(rr[i]); se <- (log(hi[i]) - log(lo[i])) / (2 * stats::qnorm(0.975))
-    if (i == 1) { th <- 0.833; se <- 0.323 }  # zip rounds the end-2000 inputs
+    # zip rounds the end-2000 inputs; apply only to the default end-2000 data
+    if (i == 1 && isTRUE(all.equal(c(rr[1], lo[1], hi[1]), c(2.30, 1.22, 4.33)))) { th <- 0.833; se <- 0.323 }
     for (p in s0) {
       v <- if (is.finite(p)) 1 / (1 / se^2 + 1 / p^2) else se^2
       m <- if (is.finite(p)) v * th / se^2 else th
@@ -60,12 +61,14 @@ safety_rofecoxib <- function(rr = c(2.30, 2.24), lo = c(1.22, 1.24), hi = c(4.33
 safety_bf_monitor <- function(est = 0.833, se = 0.323, tau = 0.5, alpha = 0.05,
                               looks = 0, pp_threshold = 0.95, n_per_look = 4,
                               nsim = 20000, seed = 1) {
-  bf <- stats::dnorm(est, 0, sqrt(se^2 + tau^2)) / stats::dnorm(est, 0, se)
+  bf <- exp(stats::dnorm(est, 0, sqrt(se^2 + tau^2), log = TRUE) - stats::dnorm(est, 0, se, log = TRUE))
   fa <- NULL
   if (looks > 0) {
     set.seed(seed)
     # Brownian information scale: at look t, precision = n_per_look * t, S_t = sum of N(0, 1/n_per_look)
-    S <- t(apply(matrix(stats::rnorm(nsim * looks), nsim), 1, cumsum)) / sqrt(n_per_look)
+    S <- matrix(stats::rnorm(nsim * looks), nsim, looks)
+    for (k in seq_len(looks)[-1]) S[, k] <- S[, k - 1] + S[, k]
+    S <- S / sqrt(n_per_look)
     info <- n_per_look * seq_len(looks)
     # theta_hat_t = S_t * sqrt(n_per_look) / info  with S_t built from unit-variance steps scaled so Var(theta_hat_t)=1/info
     that <- sweep(S * n_per_look, 2, info, "/")
@@ -73,8 +76,8 @@ safety_bf_monitor <- function(est = 0.833, se = 0.323, tau = 0.5, alpha = 0.05,
     v <- 1 / (prec + 1 / tau^2); m <- v * prec * that
     pp <- 1 - stats::pnorm(-m / sqrt(v))
     bfs <- sqrt(1 / (1 + tau^2 * prec)) * exp(0.5 * prec^2 * that^2 / (prec + 1 / tau^2))
-    fa <- c(posterior_prob = mean(apply(pp >= pp_threshold, 1, any)),
-            bayes_factor = mean(apply(bfs >= 1 / alpha, 1, any)),
+    fa <- c(posterior_prob = mean(rowSums(pp >= pp_threshold) > 0),
+            bayes_factor = mean(rowSums(bfs >= 1 / alpha) > 0),
             ville_bound = alpha)
   }
   list(bf = bf, threshold = 1 / alpha, flagged = bf >= 1 / alpha, false_alarm = fa)
@@ -112,7 +115,13 @@ safety_gps <- function(n, E, P = 1/3, a1 = 0.2, b1 = 0.1, a2 = 2, b2 = 4, prob =
   elog <- w * (digamma(A1) - log(B1)) + (1 - w) * (digamma(A2) - log(B2))
   q <- vapply(seq_along(n), function(i) {
     f <- function(x) w[i] * stats::pgamma(x, A1[i], B1[i]) + (1 - w[i]) * stats::pgamma(x, A2[i], B2[i]) - prob
-    stats::uniroot(f, c(0, 1e3), tol = 1e-10)$root
+    qs <- c(stats::qgamma(prob, A1[i], B1[i]), stats::qgamma(prob, A2[i], B2[i]))
+    if (diff(range(qs)) == 0) return(qs[1])
+    # rounding can leave an end point on the wrong side when one component has weight 0 or 1
+    if (f(max(qs)) <= 0) return(max(qs))
+    if (f(min(qs)) >= 0) return(min(qs))
+    # the mixture quantile lies between the two component quantiles
+    stats::uniroot(f, range(qs), tol = 1e-10 * max(qs))$root
   }, 0)
   data.frame(n = n, E = E, ratio = n / E, weight = w, ebgm = exp(elog), eb05 = q)
 }
@@ -133,8 +142,11 @@ safety_gps <- function(n, E, P = 1/3, a1 = 0.2, b1 = 0.1, a2 = 2, b2 = 4, prob =
 safety_gps_fit <- function(n, E, start = c(1/3, 0.2, 0.1, 2, 4)) {
   nll <- function(th) {
     P <- stats::plogis(th[1]); a1 <- exp(th[2]); b1 <- exp(th[3]); a2 <- exp(th[4]); b2 <- exp(th[5])
-    l <- log(P * exp(.gps_logmarg(n, E, a1, b1)) + (1 - P) * exp(.gps_logmarg(n, E, a2, b2)) + 1e-300)
-    -sum(l)
+    la <- stats::plogis(th[1], log.p = TRUE) + .gps_logmarg(n, E, a1, b1)
+    lb <- stats::plogis(-th[1], log.p = TRUE) + .gps_logmarg(n, E, a2, b2)
+    M <- pmax(la, lb)
+    v <- -sum(M + log(exp(la - M) + exp(lb - M)))
+    if (is.finite(v)) v else 1e300
   }
   th0 <- c(stats::qlogis(start[1]), log(start[-1]))
   best <- NULL
@@ -284,25 +296,44 @@ dose_blrm_table <- function(doses = c(1, 2, 4, 8, 16), n = c(3, 3, 3, 6, 0), y =
                             cuts = c(0.16, 0.33), overdose_max = 0.25,
                             method = c("grid", "is"), ngrid = 400, seed = 1) {
   method <- match.arg(method)
+  loglik <- function(la, lb) {
+    ll <- 0
+    for (i in seq_along(doses)) if (n[i] > 0)
+      ll <- ll + stats::dbinom(y[i], n[i], stats::plogis(la + exp(lb) * log(doses[i] / ref)), log = TRUE)
+    ll
+  }
   if (method == "grid") {
-    la <- seq(prior_mean[1] - 6 * prior_sd[1], prior_mean[1] + 6 * prior_sd[1], length.out = ngrid)
-    lb <- seq(prior_mean[2] - 6 * prior_sd[2], prior_mean[2] + 6 * prior_sd[2], length.out = ngrid)
+    # Interval probabilities are exact CDF differences in log alpha for each log beta
+    # (trapezoid CDF, linearly interpolated), so the indicator does not add grid jitter.
+    na <- 4 * ngrid                         # finer in log alpha, where the CDF is interpolated
+    la <- seq(prior_mean[1] - 7 * prior_sd[1], prior_mean[1] + 7 * prior_sd[1], length.out = na)
+    lb <- seq(prior_mean[2] - 7 * prior_sd[2], prior_mean[2] + 7 * prior_sd[2], length.out = ngrid)
     G <- expand.grid(la = la, lb = lb)
+    lw <- loglik(G$la, G$lb) + stats::dnorm(G$la, prior_mean[1], prior_sd[1], log = TRUE) +
+      stats::dnorm(G$lb, prior_mean[2], prior_sd[2], log = TRUE)
+    W <- matrix(exp(lw - max(lw)), na, ngrid); h <- la[2] - la[1]
+    cdf <- apply(W, 2, function(f) c(0, cumsum((f[-1] + f[-na]) / 2)) * h)
+    tot <- sum(cdf[na, ])
+    twt <- c(0.5, rep(1, na - 2), 0.5) * h
+    out <- t(vapply(doses, function(d) {
+      x <- exp(lb) * log(d / ref)
+      Fc <- function(cut) sum(vapply(seq_len(ngrid), function(j)
+        stats::approx(la, cdf[, j], xout = stats::qlogis(cut) - x[j], rule = 2)$y, 0)) / tot
+      F1 <- Fc(cuts[1]); F2 <- Fc(cuts[2])
+      pm <- sum(vapply(seq_len(ngrid), function(j) sum(twt * W[, j] * stats::plogis(la + x[j])), 0)) / tot
+      c(pm, F1, F2 - F1, 1 - F2)
+    }, rep(0, 4)))
   } else {
     set.seed(seed)
     G <- data.frame(la = stats::rnorm(ngrid, prior_mean[1], prior_sd[1]),
                     lb = stats::rnorm(ngrid, prior_mean[2], prior_sd[2]))
+    ll <- loglik(G$la, G$lb)
+    w <- exp(ll - max(ll)); w <- w / sum(w)
+    out <- t(vapply(doses, function(d) {
+      pi_d <- stats::plogis(G$la + exp(G$lb) * log(d / ref))
+      c(sum(w * pi_d), sum(w * (pi_d < cuts[1])), sum(w * (pi_d >= cuts[1] & pi_d < cuts[2])), sum(w * (pi_d >= cuts[2])))
+    }, rep(0, 4)))
   }
-  eta <- function(d) G$la + exp(G$lb) * log(d / ref)
-  ll <- 0
-  for (i in seq_along(doses)) if (n[i] > 0) ll <- ll + stats::dbinom(y[i], n[i], stats::plogis(eta(doses[i])), log = TRUE)
-  lw <- ll + if (method == "grid") stats::dnorm(G$la, prior_mean[1], prior_sd[1], log = TRUE) +
-    stats::dnorm(G$lb, prior_mean[2], prior_sd[2], log = TRUE) else 0
-  w <- exp(lw - max(lw)); w <- w / sum(w)
-  out <- t(vapply(doses, function(d) {
-    pi_d <- stats::plogis(eta(d))
-    c(sum(w * pi_d), sum(w * (pi_d < cuts[1])), sum(w * (pi_d >= cuts[1] & pi_d < cuts[2])), sum(w * (pi_d >= cuts[2])))
-  }, rep(0, 4)))
   data.frame(dose = doses, mean_tox = out[, 1], p_under = out[, 2], p_target = out[, 3],
              p_over = out[, 4], admissible = out[, 4] < overdose_max)
 }

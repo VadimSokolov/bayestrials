@@ -16,7 +16,7 @@
 #' @examples
 #' decide_bf_q(1.96, 10)
 #' @export
-decide_bf_q <- function(z, q) (1 + q)^(-0.5) * exp(z^2 * q / (2 * (1 + q)))
+decide_bf_q <- function(z, q) exp(-0.5 * log1p(q) + z^2 * q / (2 * (1 + q)))
 
 #' Exact Bayes evidence bar for the normal mixture
 #'
@@ -26,15 +26,16 @@ decide_bf_q <- function(z, q) (1 + q)^(-0.5) * exp(z^2 * q / (2 * (1 + q)))
 #'
 #' @param q Information ratio \eqn{q = I\tau^2}.
 #' @param c Bayes factor threshold (default 1, i.e. equal prior odds and equal losses).
-#' @return Numeric vector of bars on the \eqn{|Z|} scale.
+#' @return Numeric vector of bars on the \eqn{|Z|} scale. A threshold below the minimum attainable Bayes factor \eqn{(1+q)^{-1/2}} makes rejection certain, and the bar is 0.
 #' @examples
 #' decide_bayes_bar(c(10, 100))
 #' @export
-decide_bayes_bar <- function(q, c = 1) sqrt((1 + 1 / q) * (log(1 + q) + 2 * log(c)))
+decide_bayes_bar <- function(q, c = 1) sqrt((1 + 1 / q) * pmax(log1p(q) + 2 * log(c), 0))
 
 #' Information ratio at which the exact Bayes bar equals a given bar
 #'
 #' Solves \eqn{(1+1/q)\log(1+q) = z^2}; for \eqn{z = 1.96} the root is \eqn{q\approx 41.6}.
+#' A positive root exists only when \eqn{|z| > 1} (the left side increases from 1 at \eqn{q=0}).
 #'
 #' @param z Bar (default 1.96).
 #' @return The crossing value of \eqn{q}.
@@ -42,7 +43,12 @@ decide_bayes_bar <- function(q, c = 1) sqrt((1 + 1 / q) * (log(1 + q) + 2 * log(
 #' decide_crossing_q()
 #' @export
 decide_crossing_q <- function(z = 1.96) {
-  stats::uniroot(function(q) (1 + 1 / q) * log(1 + q) - z^2, c(1.5, 1e4), tol = 1e-10)$root
+  z <- abs(z)
+  if (!(z > 1)) stop("a positive crossing exists only for abs(z) > 1")
+  f <- function(q) (1 + 1 / q) * log1p(q) - z^2
+  lo <- 1e-10; hi <- 2
+  while (f(hi) < 0) { hi <- hi * 2; if (hi > 1e300) stop("no crossing found") }
+  stats::uniroot(f, c(lo, hi), tol = 1e-10)$root
 }
 
 #' Bayes risk of a two-sided test in the normal mixture model
@@ -134,7 +140,7 @@ decide_lindley_table <- function(n = c(10, 100, 1000, 1e4, 1e5), z = 1.96, tau =
 #' @export
 decide_bayes_type1_table <- function(n = c(10, 100, 1000, 1e4), tau = 1, sigma = 1, c = 1) {
   q <- n * tau^2 / sigma^2
-  be <- decide_bayes_bar(q, c); ba <- sqrt(log(1 + q))
+  be <- decide_bayes_bar(q, c); ba <- sqrt(pmax(log1p(q) + 2 * log(c), 0))
   data.frame(n = n, q = q, bar_exact = be, alpha_exact = 2 * stats::pnorm(-be),
              bar_approx = ba, alpha_approx = 2 * stats::pnorm(-ba))
 }
@@ -151,11 +157,12 @@ decide_bayes_type1_table <- function(n = c(10, 100, 1000, 1e4), tau = 1, sigma =
 #' decide_jeffreys_k_exact(sqrt(log(pi * 10 / 2)), 10)
 #' @export
 decide_jeffreys_k_exact <- function(t, n) {
-  n <- rep_len(n, length(t)); t <- rep_len(t, length(n))
-  vapply(seq_along(t), function(i) {
-    m1 <- stats::integrate(function(l) stats::dnorm(t[i] - l) * stats::dcauchy(l, 0, sqrt(n[i])),
+  len <- max(length(t), length(n)); t <- rep_len(t, len); n <- rep_len(n, len)
+  vapply(seq_len(len), function(i) {
+    # centered substitution u = l - t puts the normal peak at zero
+    m1 <- stats::integrate(function(u) stats::dnorm(u) * stats::dcauchy(t[i] + u, 0, sqrt(n[i])),
                            -Inf, Inf, subdivisions = 2000L, rel.tol = 1e-10)$value
-    stats::dnorm(t[i]) / m1
+    exp(stats::dnorm(t[i], log = TRUE) - log(m1))
   }, numeric(1))
 }
 
@@ -168,7 +175,9 @@ decide_jeffreys_k_exact <- function(t, n) {
 #'
 #' @param n Sample sizes.
 #' @param tau Prior sd (unit observation sd) for the normal-mixture columns.
-#' @param strong Bayes factor against the null for the strong-evidence column.
+#' @param strong Bayes factor against the null for the strong-evidence column. `t_strong` is the large-sample
+#'   approximation \eqn{\sqrt{\log(K^2\pi n/2)}}, not the exact solution of the Bayes factor equation (at \eqn{n=10} it gives an
+#'   exact Bayes factor of about 5.9, not 10).
 #' @return Data frame.
 #' @examples
 #' decide_jeffreys_table()
@@ -434,11 +443,15 @@ decide_ss_posterior_prob <- function(n, design_mean = 0.3, design_sd = 0.1, anal
 #' decide_ss_min_n(0.8)
 #' @export
 decide_ss_min_n <- function(target, ..., nmax = 1e5) {
-  ok <- function(n) decide_ss_posterior_prob(n, ...)$prob >= target
-  if (!ok(nmax)) return(NA_real_)
-  lo <- 1; hi <- nmax
-  while (hi - lo > 1) { mid <- floor((lo + hi) / 2); if (ok(mid)) hi <- mid else lo <- mid }
-  if (ok(lo)) lo else hi
+  # the criterion need not be monotone in n, so scan in chunks for the first n that reaches the target
+  nmax <- floor(nmax); start <- 1
+  while (start <= nmax) {
+    ns <- seq(start, min(start + 9999, nmax))
+    hit <- which(decide_ss_posterior_prob(ns, ...)$prob >= target)
+    if (length(hit)) return(ns[hit[1]])
+    start <- start + 10000
+  }
+  NA_real_
 }
 
 # ---- optimal stopping of a single-arm trial by backward induction ----------------------------
@@ -568,7 +581,7 @@ decide_interim_posterior <- function(m0, s0, est, se, zfinal = 2.02) {
 #' decide_inb(0.22, 0.058, 0.25, 1e5, 4000)
 #' @export
 decide_inb <- function(theta, se, qaly_per_unit, lambda, dC) {
-  m <- lambda * qaly_per_unit * theta - dC; s <- lambda * qaly_per_unit * se
+  m <- lambda * qaly_per_unit * theta - dC; s <- abs(lambda * qaly_per_unit) * se
   list(mean = m, sd = s, prob_positive = stats::pnorm(m / s))
 }
 

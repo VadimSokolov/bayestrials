@@ -12,7 +12,7 @@ decide_bayes_bar(q, c = 1)
 \item{c}{Bayes factor threshold (default 1, i.e. equal prior odds and equal losses).}
 }
 \value{
-Numeric vector of bars on the \eqn{|Z|} scale.
+Numeric vector of bars on the \eqn{|Z|} scale. A threshold below the minimum attainable Bayes factor \eqn{(1+q)^{-1/2}} makes rejection certain, and the bar is 0.
 }
 \description{
 The statistic bar at which \eqn{B = c} is

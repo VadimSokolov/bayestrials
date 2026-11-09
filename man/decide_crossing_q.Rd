@@ -14,6 +14,7 @@ The crossing value of \eqn{q}.
 }
 \description{
 Solves \eqn{(1+1/q)\log(1+q) = z^2}; for \eqn{z = 1.96} the root is \eqn{q\approx 41.6}.
+A positive root exists only when \eqn{|z| > 1} (the left side increases from 1 at \eqn{q=0}).
 }
 \examples{
 decide_crossing_q()

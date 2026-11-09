@@ -51,15 +51,18 @@ surv_events_table <- function(D = c(100, 200, 400, 800), hr = 0.8, hr_mcid = 0.9
 surv_pp_cp <- function(D1, hr_obs, Dmax = 600, hr_design = 0.8, z_crit = 1.96) {
   n <- max(length(D1), length(hr_obs))
   D1 <- rep_len(D1, n); hr_obs <- rep_len(hr_obs, n)
+  if (any(D1 > Dmax)) stop("D1 must not exceed Dmax")
   D2 <- Dmax - D1
   th <- -log(hr_obs)
   crit <- z_crit * 2 / sqrt(Dmax)           # final estimate must exceed this
   sd_cp <- (D2 / Dmax) * 2 / sqrt(D2)
   v_pp <- (D2 / Dmax)^2 * (4 / D2 + 4 / D1)
-  data.frame(D1 = D1, hr_obs = hr_obs, z = th / (2 / sqrt(D1)),
-             pp = stats::pnorm((th - crit) / sqrt(v_pp)),
-             cp_design = stats::pnorm(((D1 * th + D2 * (-log(hr_design))) / Dmax - crit) / sd_cp),
-             cp_trend = stats::pnorm((th - crit) / sd_cp))
+  pp <- stats::pnorm((th - crit) / sqrt(v_pp))
+  cpd <- stats::pnorm(((D1 * th + D2 * (-log(hr_design))) / Dmax - crit) / sd_cp)
+  cpt <- stats::pnorm((th - crit) / sd_cp)
+  fin <- D2 == 0                             # final look: the outcome is already determined
+  pp[fin] <- cpd[fin] <- cpt[fin] <- as.numeric(th[fin] > crit)
+  data.frame(D1 = D1, hr_obs = hr_obs, z = th / (2 / sqrt(D1)), pp = pp, cp_design = cpd, cp_trend = cpt)
 }
 
 #' Gamma posterior for a constant hazard
@@ -81,7 +84,7 @@ surv_gamma_hazard <- function(d, T, a = 0.01, b = 0.01, level = 0.95) {
   haz <- stats::qgamma(q, sh, rt)
   # median = log2 / lambda ; E[1/lambda] = rt / (sh - 1)
   list(hazard = c(mean = sh / rt, lo = haz[1], hi = haz[2]),
-       median = c(mean = log(2) * rt / (sh - 1), lo = log(2) / haz[2], hi = log(2) / haz[1]),
+       median = c(mean = if (sh > 1) log(2) * rt / (sh - 1) else Inf, lo = log(2) / haz[2], hi = log(2) / haz[1]),
        shape = sh, rate = rt)
 }
 
@@ -114,7 +117,7 @@ surv_rmst <- function(tau, rates, breaks = 0, cure = 0) {
   ends <- pmin(c(breaks[-1], Inf), tau)
   w <- pmax(0, ends - breaks)
   Sb <- vapply(breaks, function(b) surv_pwexp_S(b, rates, breaks), numeric(1))
-  r0 <- sum(Sb * ifelse(rates > 0, (1 - exp(-rates * w)) / rates, w))
+  r0 <- sum(Sb * ifelse(rates > 0, -expm1(-rates * w) / rates, w))
   cure * tau + (1 - cure) * r0
 }
 
@@ -232,9 +235,13 @@ gittins_table <- function(states = data.frame(a = c(1, 2, 1, 5, 10), b = c(1, 1,
 monitor_calibrate_bayes <- function(events, prior_sd = Inf, alpha = 0.025) {
   I <- events / 4; t <- events / max(events)
   bnd <- function(thr) .monitor_post_bound(thr, I, prior_sd)
-  f <- function(x) gs_crossing_prob(bnd(stats::pnorm(x)), t)$total - alpha
-  x <- stats::uniroot(f, c(1, 8), tol = 1e-10)$root
-  list(threshold = stats::pnorm(x), bounds = bnd(stats::pnorm(x)), alpha = alpha)
+  # work on the normal-quantile scale x = qnorm(thr); the total crossing probability decreases in x
+  bx <- function(x) x * sqrt(I + 1 / prior_sd^2) / sqrt(I)
+  f <- function(x) gs_crossing_prob(bx(x), t)$total - alpha
+  hi <- 2
+  while (f(hi) > 0) { hi <- hi * 2; if (hi > 100) stop("could not bracket the calibrated threshold") }
+  x <- stats::uniroot(f, c(0, hi), tol = 1e-10)$root
+  list(threshold = stats::pnorm(x), bounds = bx(x), alpha = alpha)
 }
 
 #' Three rulebooks, side by side, for an outcomes trial (plus calibrated Bayes)
@@ -269,7 +276,7 @@ monitor_three_rulebooks <- function(events = c(300, 600, 900, 1200), hr = c(0.78
     list(p = stats::pnorm(m / s), pm = stats::pnorm((m + log(hr_mcid)) / s), m = m)
   }
   fl <- post(Inf); sk <- post(skeptic_sd)
-  bf <- stats::dnorm(th, 0, sqrt(se^2 + e_sd^2)) / stats::dnorm(th, 0, se)
+  bf <- exp(stats::dnorm(th, 0, sqrt(se^2 + e_sd^2), log = TRUE) - stats::dnorm(th, 0, se, log = TRUE))
   cal <- monitor_calibrate_bayes(events, skeptic_sd, alpha)
   out <- data.frame(events = events, hr = hr, z = z, obf_bound = obf, obf_stop = z >= obf,
                     flat_p = fl$p, flat_p_mcid = fl$pm, skep_p = sk$p, skep_p_mcid = sk$pm,
@@ -428,12 +435,19 @@ reanalysis_andromeda <- function() {
 #' reanalysis_hier(c(0.44, 0.2, -0.17), c(0.12, 0.07, 0.13))$tau_mean
 #' @export
 reanalysis_hier <- function(est, se, tau_max = 1, ngrid = 400) {
-  taus <- seq(0.001, tau_max, length.out = ngrid)
-  ll <- vapply(taus, function(t) {
+  marg <- function(t) {
     v <- se^2 + t^2; w <- 1 / v; mu <- sum(w * est) / sum(w)
     -0.5 * sum(log(v) + (est - mu)^2 / v) + 0.5 * log(1 / sum(w))
-  }, numeric(1))
-  pw <- exp(ll - max(ll)); pw <- pw / sum(pw)
+  }
+  upper <- tau_max
+  for (it in 1:6) {                        # midpoint grid on (0, upper]; shrink upper while the tail is negligible
+    taus <- (seq_len(ngrid) - 0.5) / ngrid * upper
+    ll <- vapply(taus, marg, numeric(1))
+    pw <- exp(ll - max(ll)); pw <- pw / sum(pw)
+    last <- max(which(pw > 1e-12))
+    if (last > ngrid / 2) break
+    upper <- taus[last] + upper / ngrid
+  }
   m <- rep(0, length(est)); pb <- m
   for (i in seq_along(taus)) {
     t <- taus[i]; v <- se^2 + t^2; w <- 1 / v; mu <- sum(w * est) / sum(w); vm <- 1 / sum(w)

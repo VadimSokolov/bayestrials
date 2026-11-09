@@ -15,7 +15,9 @@ decide_jeffreys_table(
 
 \item{tau}{Prior sd (unit observation sd) for the normal-mixture columns.}
 
-\item{strong}{Bayes factor against the null for the strong-evidence column.}
+\item{strong}{Bayes factor against the null for the strong-evidence column. \code{t_strong} is the large-sample
+approximation \eqn{\sqrt{\log(K^2\pi n/2)}}, not the exact solution of the Bayes factor equation (at \eqn{n=10} it gives an
+exact Bayes factor of about 5.9, not 10).}
 }
 \value{
 Data frame.
