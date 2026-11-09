@@ -284,6 +284,9 @@ decide_subset_cost <- function(K = c(1, 5, 10, 50, 100, 1000), alpha = 0.025, po
 #' @param scenarios Named list of effect vectors (non-null leading entries), default the zip's.
 #' @param power_rho Correlations at which power is computed.
 #' @param seed Seed or NULL.
+#' @param direction `"two.sided"` (default) uses the symmetric squared mixture above. `"positive"` uses the
+#'   positive-direction (one-sided) mixture \eqn{K^{-1}\sum_k 2(1+\lambda^2)^{-1/2}\exp\{\lambda^2 Z_k^2/(2(1+\lambda^2))\}\mathbb{1}\{Z_k>0\}},
+#'   which tests the same alternative as the maximum.
 #' @return List with data frames `size` (naive, sidak, mixture), `power` (sidak, mixture) and
 #'   `thresholds`.
 #' @examples
@@ -294,7 +297,8 @@ decide_max_of_k_sim <- function(K = 20, rho = c(0, 0.5, 0.8), alpha = 0.025, lam
                                 scenarios = list("one effect d=3.0" = 3, "one effect d=3.5" = 3.5,
                                                  "three effects d=2.5" = rep(2.5, 3),
                                                  "five effects d=2.2" = rep(2.2, 5)),
-                                power_rho = c(0, 0.5), seed = NULL) {
+                                power_rho = c(0, 0.5), seed = NULL, direction = c("two.sided", "positive")) {
+  direction <- match.arg(direction)
   if (!is.null(seed)) set.seed(seed)
   c0 <- (1 + lam2)^-0.5; bb <- lam2 / (2 * (1 + lam2))
   draw <- function(theta, r) {
@@ -303,7 +307,8 @@ decide_max_of_k_sim <- function(K = 20, rho = c(0, 0.5, 0.8), alpha = 0.025, lam
     sweep(z, 2, theta, "+")
   }
   stat <- function(z) list(mx = do.call(pmax, as.data.frame(z)),
-                           E = rowMeans(c0 * exp(bb * z^2)))
+                           E = if (direction == "positive") rowMeans(2 * c0 * exp(bb * z^2) * (z > 0))
+                               else rowMeans(c0 * exp(bb * z^2)))
   zero <- numeric(K); size <- list(); cal <- list()
   for (r in rho) {
     s <- stat(draw(zero, r))

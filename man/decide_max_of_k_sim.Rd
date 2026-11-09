@@ -13,7 +13,8 @@ decide_max_of_k_sim(
   scenarios = list(`one effect d=3.0` = 3, `one effect d=3.5` = 3.5,
     `three effects d=2.5` = rep(2.5, 3), `five effects d=2.2` = rep(2.2, 5)),
   power_rho = c(0, 0.5),
-  seed = NULL
+  seed = NULL,
+  direction = c("two.sided", "positive")
 )
 }
 \arguments{
@@ -32,6 +33,10 @@ decide_max_of_k_sim(
 \item{power_rho}{Correlations at which power is computed.}
 
 \item{seed}{Seed or NULL.}
+
+\item{direction}{\code{"two.sided"} (default) uses the symmetric squared mixture above. \code{"positive"} uses the
+positive-direction (one-sided) mixture \eqn{K^{-1}\sum_k 2(1+\lambda^2)^{-1/2}\exp\{\lambda^2 Z_k^2/(2(1+\lambda^2))\}\mathbb{1}\{Z_k>0\}},
+which tests the same alternative as the maximum.}
 }
 \value{
 List with data frames \code{size} (naive, sidak, mixture), \code{power} (sidak, mixture) and

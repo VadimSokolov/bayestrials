@@ -64,6 +64,40 @@ test_that("K = 20 simulation reproduces size and the negative power result", {
   expect_true(all(s$power$mixture < s$power$sidak))
 })
 
+test_that("direction = 'positive' reproduces the chapter's mk_dir (11-evalues.qmd)", {
+  mk_dir <- function(K = 20, rho = c(0, 0.5, 0.8), alpha = 0.025, lam2 = 9, nsim = 2e5,
+                     scenarios = list(`one effect d=3.0` = 3, `three effects d=2.5` = rep(2.5, 3)),
+                     power_rho = c(0, 0.5), seed = NULL) {
+    if (!is.null(seed)) set.seed(seed)
+    c0 <- (1 + lam2)^-0.5; bb <- lam2 / (2 * (1 + lam2))
+    draw <- function(theta, r) sweep(sqrt(r) * rnorm(nsim) + sqrt(1 - r) * matrix(rnorm(nsim * K), nsim, K), 2, theta, "+")
+    stat <- function(z) list(mx = do.call(pmax, as.data.frame(z)), E = rowMeans(2 * c0 * exp(bb * z^2) * (z > 0)))
+    zero <- numeric(K); size <- list(); cal <- list()
+    for (r in rho) {
+      s <- stat(draw(zero, r))
+      size[[length(size) + 1]] <- data.frame(rho = r, naive = mean(s$mx > qnorm(1 - alpha)), sidak = mean(s$mx > qnorm((1 - alpha)^(1 / K))), mixture = mean(s$E >= 1 / alpha))
+      cal[[as.character(r)]] <- c(sidak = unname(quantile(s$mx, 1 - alpha)), mixture = unname(quantile(s$E, 1 - alpha)))
+    }
+    pw <- list()
+    for (r in power_rho) {
+      th <- cal[[as.character(r)]]
+      for (nm in names(scenarios)) {
+        t <- zero; t[seq_along(scenarios[[nm]])] <- scenarios[[nm]]
+        s <- stat(draw(t, r))
+        pw[[length(pw) + 1]] <- data.frame(scenario = nm, rho = r, sidak = mean(s$mx > th[["sidak"]]), mixture = mean(s$E >= th[["mixture"]]))
+      }
+    }
+    list(size = do.call(rbind, size), power = do.call(rbind, pw))
+  }
+  sc <- list(`one effect d=3.0` = 3, `three effects d=2.5` = rep(2.5, 3))
+  a <- mk_dir(K = 20, nsim = 2e4, scenarios = sc, seed = 7)
+  b <- decide_max_of_k_sim(K = 20, nsim = 2e4, scenarios = sc, seed = 7, direction = "positive")
+  expect_equal(b$size, a$size)
+  expect_equal(b$power, a$power)
+  d <- decide_max_of_k_sim(K = 20, nsim = 2e4, scenarios = sc, seed = 7)
+  expect_false(isTRUE(all.equal(d$size$mixture, b$size$mixture)))
+})
+
 test_that("sample size criteria match decision_foundations.tex:~98-108", {
   expect_equal(decide_ss_alc(0.3), 342)
   p <- decide_ss_posterior_prob(c(200, 300, 400))$prob
