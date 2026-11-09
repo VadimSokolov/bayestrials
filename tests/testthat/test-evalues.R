@@ -36,3 +36,32 @@ test_that("betting paths", {
   w0 <- ev_betting_paths(0.30, 0.30, 0.31, 200, 20000, seed = 1)
   expect_lt(mean(apply(w0, 1, max) >= log(40)), 0.025)
 })
+
+test_that("M4: e-values are finite on the raw scale in extreme regimes", {
+  expect_equal(ev_mixture(-1000, 100, 1), 0.000797804, tolerance = 1e-5)
+  expect_equal(ev_mixture(-1000, 100, 1), exp(ev_log_mixture(-1000, 100, 1, sign = 1)))
+  expect_true(all(is.finite(ev_mixture(c(-1e4, -500, 0, 30), 100, 0.15))))
+  expect_equal(ev_mixture(1000, 100, 1), Inf)
+  # sign = -1 mirrors the sign of S
+  expect_equal(ev_mixture(-7, 40, 0.3, sign = -1), ev_mixture(7, 40, 0.3))
+  expect_equal(ev_log_mixture(3, 10, 0.2, sign = -1), ev_log_mixture(-3, 10, 0.2))
+  # an e-value is nonnegative
+  expect_true(all(ev_mixture(seq(-50, 50, 5), 100, 0.5) >= 0))
+})
+
+test_that("M14: e-value inputs are validated", {
+  expect_error(ev_mixture(0, 0, rho = -1))
+  expect_error(ev_mixture(0, 0, rho = 0))
+  expect_error(ev_mixture(0, -1, rho = 1))
+  expect_error(ev_mixture(0, 10, 1, sign = 2))
+  expect_error(ev_betting_paths(0.5, 0.5, 1.5, 10, 5))
+  expect_error(ev_betting_paths(0.5, 0.5, -2, 10, 5))
+  expect_error(ev_betting_paths(1.2, 0.5, 0.1, 10, 5))
+  expect_error(ev_betting_paths(0.5, 0.5, 0.1, 0, 5))
+  expect_error(ev_walks(0, 0, 5))
+  expect_error(ev_naive_false_alarm(50, c(0, 5), reps = 10))
+  expect_error(ev_naive_false_alarm(50, 5, reps = 10, alpha = 0))
+  # wealth stays nonnegative at the boundary of the domain
+  w <- ev_betting_paths(0.5, 0.5, 1, 10, 50, seed = 1)
+  expect_false(anyNA(w))
+})

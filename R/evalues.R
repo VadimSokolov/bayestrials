@@ -3,31 +3,36 @@
 #' Half-normal mixture e-process
 #'
 #' Closed-form mixture e-process for H0: theta <= 0 when `S` is the running sum
-#' of N(theta, 1) observations.
+#' of N(theta, 1) observations. Computed on the log scale
+#' ([ev_log_mixture()]) and exponentiated, so it is finite (or correctly `Inf`
+#' or 0) wherever the e-value is representable, for example
+#' `ev_mixture(-1000, 100, 1)` is about 0.000798.
 #'
 #' @param S Running sum(s).
-#' @param n Sample size(s).
-#' @param rho Mixing standard deviation.
+#' @param n Sample size(s), nonnegative.
+#' @param rho Mixing standard deviation, positive.
 #' @param sign `1` for the one-sided (theta > 0) alternative, `-1` for the other side.
 #' @return The e-value(s).
 #' @examples
 #' ev_mixture(5, 100, 0.15)
 #' @export
 ev_mixture <- function(S, n, rho, sign = 1) {
-  A <- n + 1 / rho^2
-  2 / (rho * sqrt(A)) * exp(S^2 / (2 * A)) * stats::pnorm(sign * S / sqrt(A))
+  exp(ev_log_mixture(S, n, rho, sign))
 }
 
 #' Log of the half-normal mixture e-process
 #'
 #' @inheritParams ev_mixture
-#' @return The log e-value(s), numerically stable for large `S`.
+#' @return The log e-value(s), numerically stable for large `|S|`.
 #' @examples
 #' ev_log_mixture(5, 100, 0.15)
 #' @export
-ev_log_mixture <- function(S, n, rho) {
+ev_log_mixture <- function(S, n, rho, sign = 1) {
+  if (anyNA(rho) || any(rho <= 0) || any(!is.finite(rho))) stop("`rho` must be positive and finite")
+  if (anyNA(n) || any(n < 0)) stop("`n` must be nonnegative")
+  if (!all(sign %in% c(-1, 1))) stop("`sign` must be 1 or -1")
   A <- n + 1 / rho^2
-  log(2 / (rho * sqrt(A))) + S^2 / (2 * A) + stats::pnorm(S / sqrt(A), log.p = TRUE)
+  log(2 / (rho * sqrt(A))) + S^2 / (2 * A) + stats::pnorm(sign * S / sqrt(A), log.p = TRUE)
 }
 
 #' Random walks of N(delta, 1) increments
@@ -41,6 +46,8 @@ ev_log_mixture <- function(S, n, rho) {
 #' dim(ev_walks(0, 10, 5))
 #' @export
 ev_walks <- function(delta, nmax, reps, seed = NULL) {
+  stopifnot(length(nmax) == 1L, nmax >= 1, nmax == round(nmax),
+            length(reps) == 1L, reps >= 1, reps == round(reps))
   if (!is.null(seed)) set.seed(seed)
   M <- matrix(stats::rnorm(reps * nmax, delta, 1), reps, nmax)
   for (j in seq_len(nmax)[-1]) M[, j] <- M[, j] + M[, j - 1]
@@ -85,6 +92,9 @@ ev_chunks <- function(reps, chunk) {
 ev_naive_false_alarm <- function(nmax, looks_list, reps = 20000, rho = 0.15,
                                  alpha = 0.025, seed = NULL) {
   if (!is.null(seed)) set.seed(seed)
+  stopifnot(length(nmax) == 1L, nmax >= 1, nmax == round(nmax), alpha > 0, alpha < 1,
+            length(rho) == 1L, rho > 0, reps >= 1,
+            all(looks_list >= 1), all(looks_list == round(looks_list)), all(looks_list <= nmax))
   n <- seq_len(nmax)
   zc <- stats::qnorm(1 - alpha)
   hits <- numeric(length(looks_list)); e_hit <- 0
@@ -125,6 +135,8 @@ ev_naive_false_alarm <- function(nmax, looks_list, reps = 20000, rho = 0.15,
 ev_select_like <- function(nmax = 1270, hr = 0.80, tau = 0.25, reps = 20000,
                            alpha = 0.025, seed = NULL) {
   if (!is.null(seed)) set.seed(seed)
+  stopifnot(length(nmax) == 1L, nmax >= 4, nmax == round(nmax), hr > 0, tau > 0,
+            alpha > 0, alpha < 1, reps >= 1)
   n <- seq_len(nmax)
   delta <- -log(hr) / 2
   rho <- tau / 2
@@ -166,7 +178,8 @@ ev_select_like <- function(nmax = 1270, hr = 0.80, tau = 0.25, reps = 20000,
 #' \eqn{D = } outcome(T) minus outcome(C) for Bernoulli pairs.
 #'
 #' @param pT,pC Response rates in treatment and control.
-#' @param lam Betting fraction.
+#' @param lam Betting fraction in `[-1, 1]`: each increment is -1, 0 or 1, so
+#'   `1 + lam * D >= 0` (nonnegative wealth) exactly when `abs(lam) <= 1`.
 #' @param npairs Number of pairs.
 #' @param reps Number of paths.
 #' @param seed Optional seed.
@@ -175,6 +188,11 @@ ev_select_like <- function(nmax = 1270, hr = 0.80, tau = 0.25, reps = 20000,
 #' dim(ev_betting_paths(0.45, 0.30, 0.31, 20, 5, seed = 1))
 #' @export
 ev_betting_paths <- function(pT, pC, lam, npairs, reps, seed = NULL) {
+  if (!all(c(pT, pC) >= 0 & c(pT, pC) <= 1)) stop("`pT` and `pC` must be probabilities in [0, 1]")
+  if (length(lam) != 1L || !is.finite(lam) || abs(lam) > 1)
+    stop("`lam` must be a single number in [-1, 1] (nonnegative wealth)")
+  stopifnot(length(npairs) == 1L, npairs >= 1, npairs == round(npairs),
+            length(reps) == 1L, reps >= 1, reps == round(reps))
   if (!is.null(seed)) set.seed(seed)
   D <- (matrix(stats::runif(reps * npairs), reps, npairs) < pT) * 1 -
        (matrix(stats::runif(reps * npairs), reps, npairs) < pC) * 1

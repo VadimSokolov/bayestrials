@@ -3,14 +3,19 @@
 #' Grid search over the lower tail probability for the shortest interval with
 #' the requested coverage. Valid for unimodal Beta densities (a, b > 1).
 #'
-#' @param a,b Beta shape parameters (both greater than 1).
-#' @param level Coverage of the interval.
+#' @param a,b Beta shape parameters (both greater than 1; a warning is
+#'   issued otherwise, since the density is not unimodal).
+#' @param level Coverage of the interval, strictly between 0 and 1.
 #' @param grid Number of grid points for the lower tail probability.
 #' @return Named numeric vector with `lower` and `upper`.
 #' @examples
 #' hpd_beta(4.25, 15.75)
 #' @export
 hpd_beta <- function(a, b, level = 0.95, grid = 20001) {
+  if (!all(is.finite(c(a, b))) || a <= 0 || b <= 0) stop("`a` and `b` must be positive and finite")
+  if (a <= 1 || b <= 1)
+    warning("hpd_beta() assumes a unimodal density (a, b > 1); the result is not an HPD interval otherwise")
+  if (!(level > 0 && level < 1)) stop("`level` must be strictly between 0 and 1")
   lo_q <- seq(0, 1 - level, length.out = grid)
   lo <- stats::qbeta(lo_q, a, b)
   hi <- stats::qbeta(lo_q + level, a, b)
@@ -43,12 +48,23 @@ hpd_beta <- function(a, b, level = 0.95, grid = 20001) {
 sim_sequential_looks <- function(n_trials = 4000, n_look = 50, n_looks = 5,
                                  p_null = 0.30, threshold = 0.975,
                                  draws = 1000, seed = NULL) {
+  stopifnot(length(n_trials) == 1L, n_trials >= 1, n_trials == round(n_trials),
+            length(n_looks) == 1L, n_looks >= 1, n_looks == round(n_looks),
+            length(n_look) == 1L, n_look >= 1, n_look == round(n_look),
+            p_null >= 0, p_null <= 1, threshold >= 0, threshold <= 1,
+            length(draws) == 1L, draws >= 1)
   if (!is.null(seed)) set.seed(seed)
   ns <- n_look * seq_len(n_looks)
+  # row-wise cumulative sums that keep the n_trials x n_looks shape even when
+  # either dimension is one
+  rowcum <- function(m) {
+    for (j in seq_len(ncol(m))[-1L]) m[, j] <- m[, j] + m[, j - 1L]
+    m
+  }
   looks_data <- function(p1, p0) {
     inc1 <- matrix(stats::rbinom(n_trials * n_looks, n_look, p1), n_trials, n_looks)
     inc0 <- matrix(stats::rbinom(n_trials * n_looks, n_look, p0), n_trials, n_looks)
-    list(x1 = t(apply(inc1, 1, cumsum)), x0 = t(apply(inc0, 1, cumsum)))
+    list(x1 = rowcum(inc1), x0 = rowcum(inc0))
   }
   nmat <- matrix(ns, n_trials, n_looks, byrow = TRUE)
   out <- list()
