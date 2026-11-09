@@ -23,6 +23,18 @@ dose_true_mtd <- function(p, target = 0.25) {
 
 #' One simulated 3+3 trial
 #'
+#' The rule implemented, step by step. Treat a cohort of 3 at dose 1. At the current dose: with 0 DLTs
+#' in 3, escalate; with 1 DLT in 3, treat 3 more at the same dose, escalate if the total is 1 DLT in 6
+#' and otherwise stop; with 2 or 3 DLTs in the first 3, stop immediately (no expansion cohort). Escalation
+#' moves up exactly one dose, and a dose is never revisited: there is no de-escalation to a lower dose
+#' for further testing, no expansion of the dose below the stopping dose, and no confirmation of the
+#' selected dose. When the trial stops for excess toxicity at dose `d` the recommended dose is `d - 1`
+#' (0, "none", if `d = 1`), which may have been given to only 3 patients. If the top dose passes (0 DLTs
+#' in 3, or 1 DLT in 6 after expansion) the top dose is selected, with no expansion cohort after 0 DLTs
+#' in 3. There is no sample size cap, so the trial length is random. This is the traditional "3+3" of the usual
+#' textbook form; Storer's (1989) designs, which expand and de-escalate after initial toxicity, are
+#' different rules.
+#'
 #' @param p True DLT probabilities by dose.
 #' @return List with `selected` (recommended dose, 1-based, 0 if none), `n` and `y` (patients and DLTs per dose).
 #' @references Storer, B. E. (1989). Design and analysis of phase I clinical trials. Biometrics 45, 925-937.
@@ -51,10 +63,22 @@ dose_three_plus_three <- function(p) {
 
 #' One simulated one-parameter power-model CRM trial
 #'
-#' Posterior of the model parameter is computed on a grid with a N(0, 1.34) prior on its log.
+#' Dose-toxicity model `p_d(a) = skeleton_d^exp(a)` with a N(0, 1.34) prior on `a`. The posterior is
+#' computed on a grid of 401 equally spaced values of `a` on [-4, 4] (the prior and posterior are
+#' truncated to this range and renormalised on it). The trial starts at dose 1 and enrols `N %/% cohort`
+#' cohorts of size `cohort` (patients beyond `cohort * (N %/% cohort)` are not enrolled). After each
+#' cohort the posterior is updated and: (i) the trial stops with no dose selected (`selected = 0`) if
+#' the posterior probability that the lowest dose's toxicity exceeds `target` is more than 0.90 (this
+#' safety cutoff is checked after every cohort, including the first, with no minimum number of
+#' patients); otherwise (ii) the recommended dose is the one whose posterior mean toxicity is closest to
+#' `target` (either side of the target, so the recommended dose can exceed the target) and (iii) the next
+#' cohort is treated at that dose, except that escalation never skips: the next dose is at most one above
+#' the current one, while de-escalation can jump several levels. The selected dose is the recommendation
+#' computed after the last cohort. It is not restricted by the no-skipping rule and may be a dose that was
+#' never given. There is no early stopping for sample size or for a precisely estimated MTD.
 #'
 #' @param p True DLT probabilities by dose.
-#' @param skeleton Prior guesses of DLT probabilities.
+#' @param skeleton Prior guesses of DLT probabilities, one per dose (same length as `p`).
 #' @param N Maximum sample size.
 #' @param cohort Cohort size.
 #' @param target Target toxicity rate.
@@ -65,6 +89,7 @@ dose_three_plus_three <- function(p) {
 dose_crm <- function(p, skeleton = c(0.05, 0.12, 0.25, 0.40, 0.55, 0.70), N = 30, cohort = 3,
                      target = 0.25) {
   k <- length(p)
+  if (length(skeleton) != k) stop("`skeleton` must have the same length as `p`")
   grid <- seq(-4, 4, length.out = 401)
   prior <- stats::dnorm(grid, 0, sqrt(1.34)); prior <- prior / sum(prior)
   pw <- outer(skeleton, exp(grid), `^`)
@@ -118,7 +143,49 @@ dose_pava <- function(r, w) {
   rep(val[seq_len(m)], cnt[seq_len(m)])
 }
 
+# Final BOIN dose selection, following BOIN::select.mtd (Liu and Yuan 2015, as implemented by the
+# authors' package): doses are eliminated from the first dose i with n_i >= 3 and
+# P(p_i > target | data) > cutoff (Beta(1 + y, 1 + n - y) posterior) upwards, recomputed from the
+# final data; among the tried, non-eliminated doses the isotonic regression (PAVA) of
+# (y + 0.05) / (n + 0.1) is fitted with weights equal to the inverse posterior variance
+# 1 / [(y + 0.05)(n - y + 0.05) / ((n + 0.1)^2 (n + 1.1))]; the dose with fitted rate closest to the
+# target is selected. Ties are broken as in the reference, which adds i * 1e-10 to the i-th fitted rate:
+# the higher dose among tied doses below the target, the lower dose among tied doses above it.
+# Returns 0 if the first dose is eliminated or no non-eliminated dose has data.
+dose_boin_select <- function(n, y, target = 0.25, cutoff = 0.95) {
+  k <- length(n)
+  elim <- rep(FALSE, k)
+  for (i in seq_len(k)) {
+    if (n[i] >= 3 && stats::pbeta(target, y[i] + 1, n[i] - y[i] + 1, lower.tail = FALSE) > cutoff) {
+      elim[i:k] <- TRUE; break
+    }
+  }
+  if (elim[1] || sum(n[!elim]) == 0) return(0L)
+  adm <- which(n != 0 & !elim)
+  ya <- y[adm]; na <- n[adm]
+  phat <- (ya + 0.05) / (na + 0.1)
+  v <- (ya + 0.05) * (na - ya + 0.05) / ((na + 0.1)^2 * (na + 1.1))
+  iso <- dose_pava(phat, 1 / v) + seq_along(adm) * 1e-10
+  as.integer(adm[order(abs(iso - target))[1]])
+}
+
 #' One simulated BOIN trial
+#'
+#' Dosing follows the BOIN interval rule: with the observed DLT rate `y/n` at the current dose, escalate
+#' when it is at most the escalation boundary, de-escalate when it is at least the de-escalation boundary
+#' (see [dose_boin_bounds()]) and otherwise stay; escalation never goes to or beyond an eliminated dose.
+#' A dose and all higher doses are eliminated once `n >= 3` and `P(p > target | data) > 0.95` under a
+#' Beta(1, 1) prior (elimination is permanent during the trial); if dose 1 is eliminated the trial stops
+#' with `selected = 0`. There is no early stop for large `n` at a dose and no safety cap other than
+#' elimination. Patients beyond `cohort * (N %/% cohort)` are not enrolled.
+#'
+#' Final selection reproduces the reference `select.mtd` of the BOIN package: the elimination rule is
+#' re-evaluated on the final data, and isotonic regression with inverse posterior-variance weights
+#' (not patient counts) is applied to `(y + 0.05) / (n + 0.1)` over the tried, non-eliminated doses. The
+#' dose with fitted rate closest to the target is selected. Ties are broken as in the reference: the
+#' highest dose among tied fitted rates below the target and the lowest dose among tied fitted rates
+#' above it. (Earlier versions of this function used patient-count weights and always picked the lowest
+#' tied dose.)
 #'
 #' @param p True DLT probabilities by dose.
 #' @param N Maximum sample size.
@@ -145,11 +212,7 @@ dose_boin <- function(p, N = 30, cohort = 3, target = 0.25) {
     if (r <= le) d <- min(d + 1L, top - 1L)
     else if (r >= ld) d <- max(d - 1L, 1L)
   }
-  cand <- Filter(function(j) n[j] > 0, seq_len(min(k, top - 1L)))
-  if (!length(cand)) return(list(selected = 0L, n = n, y = y))
-  rates <- (y[cand] + 0.05) / (n[cand] + 0.1)
-  iso <- dose_pava(rates, n[cand])
-  list(selected = cand[which.min(abs(iso - target))], n = n, y = y)
+  list(selected = dose_boin_select(n, y, target), n = n, y = y)
 }
 
 #' Operating characteristics of a dose-escalation design by simulation

@@ -67,3 +67,102 @@ test_that("rar_ecmo_urn reproduces the chapter numbers", {
   expect_lt(abs(r$power_rpw - 0.15), 4 * sqrt(0.15 * 0.85 / 2000))
   expect_lt(abs(r$power_fixed - 0.29), 4 * sqrt(0.29 * 0.71 / 2000))
 })
+
+test_that("capped allocation respects the floor in every history", {
+  set.seed(3)
+  R <- 400
+  for (K in c(2, 3, 4)) {
+    S <- matrix(rpois(R * K, 8), R, K) * matrix(rbinom(R * K, 1, 0.5) * 4 + 1, R, K)
+    F <- matrix(rpois(R * K, 8), R, K)
+    for (fl in c(0.1, 0.2)) {
+      lower <- if (K > 2) fl / K else fl
+      p <- rar_alloc_probs("capped", S, F, 200, 400, K, floor = fl)
+      expect_true(all(p >= lower - 1e-9))
+      expect_equal(rowSums(p), rep(1, R), tolerance = 1e-9)
+      if (K == 2) expect_true(all(p <= 1 - fl + 1e-9))
+      if (K > 2) {
+        q <- rar_alloc_probs("capped", S, F, 200, 400, K, floor = fl, fixed_ctrl = TRUE)
+        expect_equal(q[, 1], rep(1 / K, R))
+        expect_true(all(q[, -1] >= lower - 1e-9))
+        expect_equal(rowSums(q), rep(1, R), tolerance = 1e-9)
+      }
+    }
+  }
+  # extreme history: raw Thompson probability is (0, 1)
+  p <- rar_alloc_probs("capped", matrix(c(0, 500), 1), matrix(c(500, 0), 1), 200, 400, 2, floor = 0.1)
+  expect_equal(as.vector(p), c(0.1, 0.9))
+  expect_equal(rar_bound_probs(matrix(c(0, 1), 1), 0.1), matrix(c(0.1, 0.9), 1))
+  expect_equal(rar_bound_probs(matrix(c(0, 0.2, 0.8), 1), 0.1), matrix(c(0.1, 0.18, 0.72), 1), tolerance = 1e-6)
+  expect_error(rar_alloc_probs("capped", matrix(0, 1, 2), matrix(0, 1, 2), 200, 400, 2, floor = 0.6))
+})
+
+test_that("fixed-control allocation uses probabilities of being best among experimental arms", {
+  set.seed(4)
+  # control is by far the best arm, experimental arms 2 and 3 are equal and arm 4 is worse
+  S <- matrix(c(90, 20, 20, 5), 1); F <- matrix(c(10, 80, 80, 95), 1)
+  q <- rar_alloc_probs("capped", S, F, 200, 400, 4, floor = 0.1, fixed_ctrl = TRUE, M = 20000)
+  expect_equal(q[1], 0.25)
+  expect_equal(q[2], q[3], tolerance = 0.02)
+  expect_gt(q[2] / q[4], 10)
+  expect_equal(sum(q[2:4]), 0.75)
+  # with the control excluded the experimental arms share the full 0.75 (all-arm normalisation
+  # would leave them with only the residual best-arm mass)
+  S2 <- matrix(c(90, 50, 5, 5), 1); F2 <- matrix(c(10, 50, 95, 95), 1)
+  q2 <- rar_alloc_probs("capped", S2, F2, 200, 400, 4, floor = 0.1, fixed_ctrl = TRUE, M = 20000)
+  expect_gt(q2[2], 0.69)
+})
+
+test_that("rar_simulate enrols exactly N patients", {
+  for (cfg in list(c(10, 20), c(101, 20), c(7, 3), c(100, 20), c(45, 50))) {
+    for (rule in c("equal", "ts", "capped")) {
+      r <- rar_simulate(c(1, 1), cfg[1], rule, reps = 30, batch = cfg[2], seed = 1)
+      expect_equal(r$resp, cfg[1])
+      r4 <- rar_simulate(rep(1, 4), cfg[1], rule, reps = 10, batch = cfg[2], seed = 1)
+      expect_equal(r4$resp, cfg[1])
+    }
+  }
+  r <- rar_simulate(c(1, 1), 101, "equal", reps = 50, batch = 20, seed = 2)
+  expect_equal(r$n_inferior, 101 * (1 - r$share_best))
+})
+
+test_that("rar_simulate keeps allocation within bounds in every simulated batch", {
+  seen <- list()
+  orig <- rar_alloc_probs
+  testthat::local_mocked_bindings(rar_alloc_probs = function(...) {
+    p <- orig(...)
+    seen[[length(seen) + 1L]] <<- p
+    p
+  })
+  rar_simulate(c(0.1, 0.9), 203, "capped", reps = 200, batch = 20, seed = 5, floor = 0.1)
+  expect_gt(length(seen), 5)
+  expect_true(all(vapply(seen, function(p) all(p >= 0.1 - 1e-9 & p <= 0.9 + 1e-9), logical(1))))
+  seen <- list()
+  rar_simulate(c(0.1, 0.1, 0.9, 0.9), 203, "capped", reps = 100, batch = 20, seed = 5,
+               fixed_ctrl = TRUE)
+  expect_true(all(vapply(seen, function(p) all(p[, -1] >= 0.1 / 4 - 1e-9) && all(abs(p[, 1] - 0.25) < 1e-12), logical(1))))
+})
+
+test_that("best-arm rejection summaries are sane under the null and with a single replicate", {
+  r <- rar_simulate(c(0.3, 0.3), 100, "equal", reps = 200, seed = 1)
+  expect_false(anyNA(unlist(r)))
+  expect_true(r$rej_best_naive >= 0 && r$rej_best_naive <= 0.1)
+  r4 <- rar_simulate(rep(0.3, 4), 120, "ts", drift = 0.2, reps = 100, seed = 1)
+  expect_false(anyNA(unlist(r4)))
+  expect_true(r4$rej_best_strat <= r4$rej_any_strat + 1e-12)
+  # control strictly best: summary still defined
+  rc <- rar_simulate(c(0.6, 0.3, 0.3), 100, "equal", reps = 100, seed = 1)
+  expect_false(anyNA(unlist(rc)))
+  # alternative unchanged: best arm is the best experimental arm
+  ra <- rar_simulate(c(0.3, 0.3, 0.4, 0.5), 200, "equal", reps = 300, seed = 1)
+  expect_lte(ra$rej_best_naive, ra$rej_any_naive + 1e-12)
+  d <- rar_drift_sweep(drifts = 0.1, reps = 20, N = 100, seed = 1)
+  expect_false(anyNA(d$rej_best_naive))
+  expect_false(anyNA(rar_four_arm(reps = 20, N = 100, seed = 1)$null$rej_best_naive))
+  for (rule in c("equal", "ts", "capped")) {
+    one <- rar_simulate(c(0.3, 0.45), 60, rule, reps = 1, seed = 1)
+    expect_false(anyNA(unlist(one)))
+    one4 <- rar_simulate(c(0.3, 0.3, 0.4, 0.5), 60, rule, reps = 1, seed = 1, fixed_ctrl = rule == "capped")
+    expect_false(anyNA(unlist(one4)))
+  }
+  expect_equal(dim(rar_alloc_probs("ts", matrix(c(3, 6), 1), matrix(c(7, 4), 1), 20, 100, 2)), c(1, 2))
+})
