@@ -105,3 +105,29 @@ dbetabinom <- function(x, n, a, b, log = FALSE) {
   l[!ok] <- -Inf
   if (log) l else exp(l)
 }
+
+#' Bayes' rule on a grid: prior times likelihood equals posterior
+#'
+#' Computes the discrete version of Bayes' rule on a grid of parameter values:
+#' the posterior is proportional to the prior times the likelihood, normalized
+#' to sum to one. The likelihood column is also normalized to sum to one so
+#' that the three columns can be drawn on comparable scales.
+#'
+#' @param theta Grid of parameter values.
+#' @param prior Prior weights on the grid (need not sum to one).
+#' @param likelihood Likelihood evaluated on the grid, or a function of theta.
+#' @return A data.frame with columns `theta`, `prior`, `likelihood` and
+#'   `posterior`, each of the last three summing to one.
+#' @examples
+#' theta <- seq(0, 1, by = 0.1)
+#' grid_update(theta, dbeta(theta, 2, 2), dbinom(7, 10, theta))
+#' @export
+grid_update <- function(theta, prior, likelihood) {
+  if (is.function(likelihood)) likelihood <- likelihood(theta)
+  stopifnot(length(prior) == length(theta), length(likelihood) == length(theta))
+  prior <- prior / sum(prior)
+  lik <- likelihood / sum(likelihood)
+  post <- prior * likelihood
+  if (sum(post) == 0) stop("prior and likelihood have no overlap on the grid")
+  data.frame(theta = theta, prior = prior, likelihood = lik, posterior = post / sum(post))
+}

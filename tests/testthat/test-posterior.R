@@ -22,3 +22,12 @@ test_that("dbetabinom matches choose/beta formula", {
   expect_equal(dbetabinom(3, 10, 2, 3, log = TRUE), log(dbetabinom(3, 10, 2, 3)))
   expect_equal(dbetabinom(c(-1, 11), 10, 2, 3), c(0, 0))
 })
+
+test_that("grid_update matches conjugate Beta posterior in the limit", {
+  theta <- seq(0.0005, 0.9995, by = 0.001)
+  g <- grid_update(theta, dbeta(theta, 2, 2), dbinom(7, 10, theta))
+  expect_equal(sum(g$posterior), 1)
+  expect_equal(sum(g$theta * g$posterior), 9 / 14, tolerance = 1e-4)
+  expect_equal(sum(g$prior), 1)
+  expect_error(grid_update(c(0, 1), c(1, 0), c(0, 1)))
+})

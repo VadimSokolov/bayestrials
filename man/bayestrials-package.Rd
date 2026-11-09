@@ -8,6 +8,14 @@
 \description{
 Companion package to the book "Bayesian Adaptive Clinical Trials". Posterior computations for binary, normal and time-to-event endpoints; group sequential boundaries by the Armitage recursion; calibration of posterior probability success rules to a frequentist type I error by simulation; operating characteristics of fixed, group sequential and Bayesian adaptive designs; predictive probability and backward induction; response-adaptive randomization; dose finding; borrowing from historical data; platform trials; e-values; and the case-study reconstructions used in the book.
 }
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://github.com/VadimSokolov/bayestrials}
+  \item Report bugs at \url{https://github.com/VadimSokolov/bayestrials/issues}
+}
+
+}
 \author{
 \strong{Maintainer}: Vadim Sokolov \email{vsokolov@gmu.edu}
 
