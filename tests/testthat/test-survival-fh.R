@@ -1,0 +1,17 @@
+test_that("fh_z with rho = gamma = 0 equals the survdiff log-rank z", {
+  skip_if_not_installed("survival")
+  set.seed(42)
+  n <- 150
+  tm <- c(rexp(n, 0.15), rexp(n, 0.10))
+  cens <- runif(2 * n, 2, 12)
+  time <- pmin(tm, cens)
+  status <- as.integer(tm <= cens)
+  grp <- rep(0:1, each = n)
+  sd <- survival::survdiff(survival::Surv(time, status) ~ grp)
+  z_sd <- sign(sd$obs[1] - sd$exp[1]) * sqrt(sd$chisq)
+  f <- fh_z(time, status, grp)
+  expect_equal(unname(f$z[1]), unname(z_sd), tolerance = 1e-8)
+  expect_equal(dim(f$corr), c(4, 4))
+  expect_equal(unname(diag(f$corr)), rep(1, 4))
+  expect_true(all(abs(f$corr) <= 1 + 1e-12))
+})
