@@ -2,32 +2,42 @@
 % Please edit documentation in R/applied.R
 \name{reanalysis_gusto}
 \alias{reanalysis_gusto}
-\title{GUSTO prior-weight table (Brophy and Joseph style)}
+\title{GUSTO prior-weight table (Brophy and Joseph, 1995)}
 \usage{
 reanalysis_gusto(
-  n_tpa = 10400,
-  n_sk = 20200,
-  p_tpa = 0.063,
-  p_sk = 0.073,
-  prior_se = 0.0035,
+  gusto = c(652, 10343, 1473, 20173),
+  prior = c(993 + 1418, 10372 + 13746, 929 + 1455, 10396 + 13780),
   w = c(0, 0.1, 0.5, 1),
   mcid = 0.01
 )
 }
 \arguments{
-\item{n_tpa, n_sk}{Arm sizes. @param p_tpa,p_sk Mortality.}
+\item{gusto}{Deaths and patients: \code{c(tpa_d, tpa_n, sk_d, sk_n)}.}
 
-\item{prior_se}{Prior standard error at full weight. @param w Prior weights (\code{0} = flat).}
+\item{prior}{Pooled GISSI-2 and ISIS-3 deaths and patients, same order.}
 
-\item{mcid}{Clinically important risk difference.}
+\item{w}{Prior weights (\code{0} = no prior). @param mcid Clinically important difference.}
 }
 \value{
-data.frame with \code{prior}, \code{post_mean}, \code{p_benefit}, \code{p_mcid}; \code{attr(, "est")} and \code{attr(, "se")}.
+data.frame with \code{prior}, \code{post_mean}, \code{p_benefit}, \code{p_mcid} (difference
+model) and \code{arm_mean}, \code{arm_p_benefit}, \code{arm_p_mcid} (arm model);
+\code{attr(, "est")}, \code{attr(, "se")}, \code{attr(, "prior_mean")}, \code{attr(, "prior_se")}.
 }
 \description{
-Risk difference (streptokinase minus tPA, benefit positive for tPA) from the
-reported arm sizes and event rates, combined with a prior centred at zero,
-with sd \code{prior_se / sqrt(w)}, representing GISSI-2 and ISIS-3 at weight \code{w}.
+Thirty-day mortality, accelerated tPA against streptokinase, from the GUSTO
+counts of Brophy and Joseph (1995, Table 1), with the earlier trials GISSI-2
+and ISIS-3 entering at weight \code{w} (each earlier patient counts as \code{w} of a
+GUSTO patient). Two models are reported.
+}
+\details{
+Difference model: the prior is on the risk difference (streptokinase minus
+tPA), normal with the pooled earlier difference as mean and its standard
+error divided by \code{sqrt(w)}.
+
+Arm model (Brophy and Joseph): independent beta priors on each arm's
+mortality, built from the pooled earlier deaths and patients of that arm at
+weight \code{w}, so that each arm's posterior rate pools GUSTO with the earlier
+trials; the difference is approximated as normal (it reproduces their Table 2).
 }
 \examples{
 reanalysis_gusto()

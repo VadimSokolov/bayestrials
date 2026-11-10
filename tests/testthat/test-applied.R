@@ -52,11 +52,13 @@ test_that("monitoring look table matches the zip and calibration controls the nu
   expect_equal(monitor_harm_rule(60, 1.3)$trigger_hr, 1.2)
 })
 
-test_that("reanalysis tables match the zip", {
+test_that("reanalysis tables match the zip and Brophy-Joseph", {
   g <- reanalysis_gusto()
-  expect_equal(round(g$post_mean, 4), c(0.0100, 0.0093, 0.0073, 0.0058))
-  expect_equal(round(g$p_benefit, 3), c(1.000, 0.999, 0.998, 0.994), tolerance = 0.0006)
-  expect_equal(round(g$p_mcid, 2), c(0.50, 0.41, 0.15, 0.03))
+  # arm model reproduces Brophy and Joseph (1995) Table 2: 0.9995, 0.98, 0.44, 0.17; 0.48 at w = 0
+  expect_equal(g$arm_p_benefit, c(0.9995, 0.98, 0.44, 0.17), tolerance = 0.01)
+  expect_equal(g$arm_p_mcid[1], 0.49, tolerance = 0.015)
+  expect_equal(round(g$p_benefit, 3), c(1.000, 0.999, 0.992, 0.968), tolerance = 0.0006)
+  expect_equal(round(g$p_mcid, 2), c(0.50, 0.33, 0.03, 0.00))
   e <- reanalysis_eolia()
   expect_equal(round(e$post_ratio, 2), c(0.78, 0.83, 0.89, 0.75), tolerance = 0.011)
   expect_equal(round(e$p_benefit, 2), c(0.95, 0.91, 0.87, 0.99))

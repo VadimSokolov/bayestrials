@@ -363,30 +363,54 @@ reanalysis_ratio <- function(ratio, lo, hi, priors = list(flat = c(0, Inf)), thr
   out
 }
 
-#' GUSTO prior-weight table (Brophy and Joseph style)
+#' GUSTO prior-weight table (Brophy and Joseph, 1995)
 #'
-#' Risk difference (streptokinase minus tPA, benefit positive for tPA) from the
-#' reported arm sizes and event rates, combined with a prior centred at zero,
-#' with sd `prior_se / sqrt(w)`, representing GISSI-2 and ISIS-3 at weight `w`.
+#' Thirty-day mortality, accelerated tPA against streptokinase, from the GUSTO
+#' counts of Brophy and Joseph (1995, Table 1), with the earlier trials GISSI-2
+#' and ISIS-3 entering at weight `w` (each earlier patient counts as `w` of a
+#' GUSTO patient). Two models are reported.
 #'
-#' @param n_tpa,n_sk Arm sizes. @param p_tpa,p_sk Mortality.
-#' @param prior_se Prior standard error at full weight. @param w Prior weights (`0` = flat).
-#' @param mcid Clinically important risk difference.
-#' @return data.frame with `prior`, `post_mean`, `p_benefit`, `p_mcid`; `attr(, "est")` and `attr(, "se")`.
+#' Difference model: the prior is on the risk difference (streptokinase minus
+#' tPA), normal with the pooled earlier difference as mean and its standard
+#' error divided by `sqrt(w)`.
+#'
+#' Arm model (Brophy and Joseph): independent beta priors on each arm's
+#' mortality, built from the pooled earlier deaths and patients of that arm at
+#' weight `w`, so that each arm's posterior rate pools GUSTO with the earlier
+#' trials; the difference is approximated as normal (it reproduces their Table 2).
+#'
+#' @param gusto Deaths and patients: `c(tpa_d, tpa_n, sk_d, sk_n)`.
+#' @param prior Pooled GISSI-2 and ISIS-3 deaths and patients, same order.
+#' @param w Prior weights (`0` = no prior). @param mcid Clinically important difference.
+#' @return data.frame with `prior`, `post_mean`, `p_benefit`, `p_mcid` (difference
+#'   model) and `arm_mean`, `arm_p_benefit`, `arm_p_mcid` (arm model);
+#'   `attr(, "est")`, `attr(, "se")`, `attr(, "prior_mean")`, `attr(, "prior_se")`.
 #' @examples
 #' reanalysis_gusto()
 #' @export
-reanalysis_gusto <- function(n_tpa = 10400, n_sk = 20200, p_tpa = 0.063, p_sk = 0.073,
-                             prior_se = 0.0035, w = c(0, 0.1, 0.5, 1), mcid = 0.01) {
-  est <- p_sk - p_tpa
-  se <- sqrt(p_tpa * (1 - p_tpa) / n_tpa + p_sk * (1 - p_sk) / n_sk)
+reanalysis_gusto <- function(gusto = c(652, 10343, 1473, 20173),
+                             prior = c(993 + 1418, 10372 + 13746, 929 + 1455, 10396 + 13780),
+                             w = c(0, 0.1, 0.5, 1), mcid = 0.01) {
+  v <- function(y, n) (y / n) * (1 - y / n) / n
+  est <- gusto[3] / gusto[4] - gusto[1] / gusto[2]
+  se <- sqrt(v(gusto[1], gusto[2]) + v(gusto[3], gusto[4]))
+  m0 <- prior[3] / prior[4] - prior[1] / prior[2]
+  s0 <- sqrt(v(prior[1], prior[2]) + v(prior[3], prior[4]))
   rows <- lapply(w, function(wi) {
-    r <- reanalysis_normal(est, se, 0, if (wi == 0) Inf else prior_se / sqrt(wi), mcid = mcid)
-    data.frame(prior = if (wi == 0) "Flat" else paste0("w = ", wi), post_mean = r$post_mean,
-               p_benefit = r$p_benefit, p_mcid = r[[4]])
+    r <- reanalysis_normal(est, se, m0, if (wi == 0) Inf else s0 / sqrt(wi), mcid = mcid)
+    a <- 1 + gusto[1] + wi * prior[1]; b <- 1 + gusto[2] - gusto[1] + wi * (prior[2] - prior[1])
+    c <- 1 + gusto[3] + wi * prior[3]; d <- 1 + gusto[4] - gusto[3] + wi * (prior[4] - prior[3])
+    mt <- a / (a + b); ms <- c / (c + d)
+    vt <- a * b / ((a + b)^2 * (a + b + 1)); vs <- c * d / ((c + d)^2 * (c + d + 1))
+    am <- ms - mt; as <- sqrt(vt + vs)
+    data.frame(prior = if (wi == 0) "None (GUSTO only)" else paste0("w = ", wi),
+               post_mean = r$post_mean, p_benefit = r$p_benefit, p_mcid = r[[4]],
+               arm_mean = am, arm_p_benefit = stats::pnorm(am / as),
+               arm_p_mcid = stats::pnorm((am - mcid) / as))
   })
   out <- do.call(rbind, rows)
   attr(out, "est") <- est; attr(out, "se") <- se
+  attr(out, "prior_mean") <- m0; attr(out, "prior_se") <- s0
   out
 }
 
