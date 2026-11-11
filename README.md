@@ -43,7 +43,7 @@ Methods are checked against published values (for example the O'Brien-Fleming bo
 
 ## Interactive companion
 
-https://nytel.ai/testing/ (including a browser-based Bayesian trial simulator).
+https://vsokolov.org/bayesian_trials_lab/ (including a browser-based Bayesian trial simulator).
 
 ## License
 
