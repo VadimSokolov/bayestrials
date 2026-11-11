@@ -1,4 +1,4 @@
-# Decision-theoretic design tools for Volume I: Bayes risk of a test, Jeffreys bar in q,
+# Decision-theoretic design tools for the book: Bayes risk of a test, Jeffreys bar in q,
 # square-root sizing, cost of K subsets, Bayesian sample size criteria, optimal stopping,
 # pivotal sizing, noninferiority and borrowing worked cases.
 # Notation: q = I tau^2 is the prior-to-sampling information ratio of the normal mixture
