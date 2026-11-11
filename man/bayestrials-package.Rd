@@ -4,9 +4,9 @@
 \name{bayestrials-package}
 \alias{bayestrials}
 \alias{bayestrials-package}
-\title{bayestrials: companion package to "Bayesian Clinical Trials and Personalized Medicine, Volume I: Bayesian Clinical Trials"}
+\title{bayestrials: companion package to "Bayesian Clinical Trials"}
 \description{
-Companion package to the book "Bayesian Clinical Trials and Personalized Medicine, Volume I: Bayesian Clinical Trials". Posterior computations for binary, normal and time-to-event endpoints; group sequential boundaries by the Armitage recursion; calibration of posterior probability success rules to a frequentist type I error by simulation; operating characteristics of fixed, group sequential and Bayesian adaptive designs; predictive probability and backward induction; response-adaptive randomization; dose finding; borrowing from historical data; platform trials; e-values; and the case-study reconstructions used in the book.
+Companion package to the book "Bayesian Clinical Trials". Posterior computations for binary, normal and time-to-event endpoints; group sequential boundaries by the Armitage recursion; calibration of posterior probability success rules to a frequentist type I error by simulation; operating characteristics of fixed, group sequential and Bayesian adaptive designs; predictive probability and backward induction; response-adaptive randomization; dose finding; borrowing from historical data; platform trials; e-values; and the case-study reconstructions used in the book.
 }
 \seealso{
 Useful links:

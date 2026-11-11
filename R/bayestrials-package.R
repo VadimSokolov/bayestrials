@@ -1,4 +1,4 @@
-#' bayestrials: companion package to "Bayesian Clinical Trials and Personalized Medicine, Volume I: Bayesian Clinical Trials"
+#' bayestrials: companion package to "Bayesian Clinical Trials"
 #'
 #' @keywords internal
 "_PACKAGE"
