@@ -1,6 +1,6 @@
 # bayestrials
 
-Companion R package to the book *Bayesian Adaptive Clinical Trials* by Nicholas G. Polson and Vadim Sokolov. It implements every computation in the book, and the book's code chunks are short calls to it.
+Companion R package to the book *Bayesian Clinical Trials and Personalized Medicine, Volume I: Bayesian Clinical Trials* by Alexandra Sokolova, Vadim Sokolov and Nicholas G. Polson. It implements every computation in the book, and the book's code chunks are short calls to it.
 
 ## Installation
 
